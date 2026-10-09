@@ -8,7 +8,7 @@ Author: EMMANUEL EMMANUEL ETIM <emmanuel224etim089@gmail.com>
 Repository: https://github.com/emmanuelemmanueletim/edocApi
 """
 
-__version__ = "0.0.2"
+__version__ = "0.1.0"
 __author__ = "EMMANUEL EMMANUEL ETIM"
 __author_email__ = "emmanuel224etim089@gmail.com"
 __license__ = "MIT"

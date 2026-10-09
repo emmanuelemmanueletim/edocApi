@@ -14,7 +14,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_version():
-    assert __version__ == "0.0.2"
+    assert __version__ == "0.1.0"
 
 
 def test_supported_types():

@@ -4,7 +4,7 @@
 
 > Simple API for the developer. Powerful document processing underneath.
 
-Built on [Starlette](https://www.starlette.io/). Version **0.0.2**.
+Built on [Starlette](https://www.starlette.io/). Version **0.1.0**.
 
 ---
 
@@ -102,6 +102,8 @@ edocapi run
 # or with auto-reload:
 edocapi run --reload
 ```
+
+Open **http://127.0.0.1:8000** in your browser to see the eDocAPI developer dashboard. It shows your registered routes, supported document types, upload limit, and available `Document` operations. The dashboard is enabled by default when you have not registered your own `GET /` route. Set `App(dashboard=False)` to disable it.
 
 Upload a document to `POST /convert` and receive a PDF.
 

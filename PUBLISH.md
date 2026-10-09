@@ -19,6 +19,54 @@ PyPI credentials and is a separate step from preparing the package.
    `edocapi --version` command, and the documented optional extras.
 5. Upload to TestPyPI and install the candidate package from a clean environment.
 
+## eDocAPI 0.1.0 release notes
+
+### Highlights
+
+- Add an automatically generated developer dashboard at `/` showing the app's
+  registered routes, supported document formats, upload limit, and document
+  operations.
+- Keep a developer-defined `GET /` route in control; disable the built-in
+  dashboard with `App(dashboard=False)`.
+- Document the local development server workflow and dashboard URL.
+
+### Compatibility
+
+- This release remains alpha software and keeps the existing document
+  conversion API and optional dependency model.
+- Dashboard behavior is additive for apps without a `GET /` route.
+
+### GitHub release note
+
+Create a GitHub release for tag `v0.1.0` with title `eDocAPI 0.1.0` and use
+the contents of [RELEASE_NOTES_0.1.0.md](RELEASE_NOTES_0.1.0.md) as its body.
+Publish the source tag and GitHub release after the TestPyPI candidate has
+been reviewed.
+
+### TestPyPI note
+
+This is a **TestPyPI candidate** for validating the 0.1.0 package build and
+installation. TestPyPI is a separate test index; installing from it may require
+specifying `--index-url https://test.pypi.org/simple/` and the production PyPI
+index as `--extra-index-url` for dependencies. This candidate note does not
+announce a production PyPI release.
+
+### Build, check, and upload to TestPyPI
+
+Build from a clean distribution directory, then check and upload explicitly to
+the TestPyPI repository:
+
+```bash
+python -m pip install --upgrade build twine
+python -m build
+python -m twine check dist/*
+python -m twine upload --repository testpypi dist/*
+```
+
+Confirm the artifacts are named `edocapi-0.1.0.tar.gz` and
+`edocapi-0.1.0-py3-none-any.whl`. Do not upload these same artifacts to the
+production PyPI repository unless you intend to make the public release.
+
 ## Publish
 
 Use a PyPI API token and Trusted Publishing where configured. Otherwise upload
@@ -31,10 +79,9 @@ python -m twine upload dist/*
 Do not commit API tokens. A version already uploaded to PyPI cannot be replaced;
 increment the version for every follow-up release.
 
-For the first upload, build with an empty `dist/` directory so the command cannot
-accidentally include stale artifacts from an earlier version. Verify that the
-filenames are `edocapi-0.0.2.tar.gz` and `edocapi-0.0.2-py3-none-any.whl` before
-uploading.
+For an upload, build with an empty `dist/` directory so the command cannot
+accidentally include stale artifacts from an earlier version. Verify the
+filenames match the intended release version before uploading.
 
 ## Hosted deployment
 

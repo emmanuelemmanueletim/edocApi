@@ -49,6 +49,8 @@ class App:
             **kwargs,
         )
         self._routes: list[Route] = []
+        self._dashboard_enabled = bool(kwargs.get("dashboard", True))
+        self._dashboard_endpoint: Callable | None = None
         self._temp_storage = TemporaryStorage(self.config.temp_dir)
         self._starlette: Starlette | None = None
 
@@ -75,6 +77,20 @@ class App:
             return await self._dispatch(endpoint, request)
 
         self._routes.append(Route(path, endpoint=wrapper, methods=list(methods)))
+
+    def _dashboard_response(self) -> Response:
+        """Build the interactive developer dashboard from this app's routes."""
+        from edocapi.document import Document
+        from edocapi.dashboard import render_dashboard
+
+        routes = [
+            {"path": route.path, "methods": sorted(route.methods or []), "name": getattr(route.endpoint, "__name__", "endpoint")}
+            for route in self._routes
+        ]
+        return Response(
+            render_dashboard(routes, Document.supported_types(), self.config.max_file_size),
+            media_type="text/html",
+        )
 
     def get(self, path: str) -> Callable:
         def decorator(func: Callable) -> Callable:
@@ -232,9 +248,16 @@ class App:
     def asgi(self) -> Starlette:
         """Return the underlying Starlette ASGI application."""
         if self._starlette is None:
+            routes = list(self._routes)
+            if self._dashboard_enabled and not any(r.path == "/" and "GET" in (r.methods or []) for r in routes):
+                async def dashboard_endpoint(request: Request) -> Response:
+                    return self._dashboard_response()
+
+                self._dashboard_endpoint = dashboard_endpoint
+                routes.insert(0, Route("/", endpoint=dashboard_endpoint, methods=["GET"]))
             self._starlette = Starlette(
                 debug=self.config.debug,
-                routes=self._routes,
+                routes=routes,
                 exception_handlers={
                     Exception: self._global_exception_handler,
                 },
