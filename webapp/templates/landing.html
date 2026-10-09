@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>eDocAPI — Document processing APIs made simple</title>
+  <meta name="description" content="eDocAPI is a lightweight Python framework for building document-processing and document-automation APIs." />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="/static/js/landing.js" defer></script>
+</head>
+<body>
+  <nav class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">eD</span>
+        eDocAPI
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#formats">Formats</a></li>
+        <li><a href="/docs-ui">Docs</a></li>
+        <li><a class="btn btn-primary" href="/dashboard">Open dashboard</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="container">
+      <div class="hero-badge">v{{ version }} · Powered by eDocAPI framework</div>
+      <h1>Document APIs without the <span>plumbing</span></h1>
+      <p class="hero-lead">
+        Convert, merge, compress, and extract text from documents through a clean API —
+        and use every feature from this built-in dashboard.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="/dashboard">Launch dashboard</a>
+        <a class="btn btn-ghost" href="#features">See what it does</a>
+      </div>
+      <pre class="hero-code" aria-live="off"><span class="kw">from</span> edocapi <span class="kw">import</span> App, Document
+
+app = App()
+
+@app.post(<span class="str">"/convert"</span>)
+<span class="kw">def</span> <span class="fn">convert</span>(file):
+    <span class="kw">return</span> Document(file).to_pdf()</pre>
+    </div>
+  </header>
+
+  <section class="section" id="features">
+    <div class="container">
+      <h2 class="section-title">Built for real document work</h2>
+      <p class="section-sub">The same operations your API exposes are available in the dashboard UI.</p>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">📄</div>
+          <h3>Convert to PDF</h3>
+          <p>Turn DOCX, HTML, Markdown, images, and more into downloadable PDFs.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔗</div>
+          <h3>Merge &amp; split</h3>
+          <p>Combine multiple PDFs or extract page ranges with 1-based page numbers.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📉</div>
+          <h3>Compress</h3>
+          <p>Reduce PDF size with configurable compression levels before you ship files.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📝</div>
+          <h3>Extract text</h3>
+          <p>Pull plain text from PDF, DOCX, HTML, Markdown, and TXT for search or indexing.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">ℹ️</div>
+          <h3>Document info</h3>
+          <p>Inspect type, size, page count, author, and other metadata in one call.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3>Framework core</h3>
+          <p>Uploads, validation, temp files, and responses are handled by eDocAPI — not by hand.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="formats" style="padding-top:0">
+    <div class="container">
+      <h2 class="section-title">Supported formats</h2>
+      <p class="section-sub">v{{ version }} focuses on reliable, honest support — not empty checkboxes.</p>
+      <div class="formats">
+        <span class="chip">PDF</span>
+        <span class="chip">DOCX</span>
+        <span class="chip">HTML</span>
+        <span class="chip">Markdown</span>
+        <span class="chip">JPG</span>
+        <span class="chip">PNG</span>
+        <span class="chip">WEBP</span>
+        <span class="chip">TXT</span>
+      </div>
+      <div style="text-align:center;margin-top:2.5rem">
+        <a class="btn btn-primary" href="/dashboard">Try it in the dashboard</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <p><strong>eDocAPI</strong> v{{ version }} · Built by EMMANUEL EMMANUEL ETIM</p>
+      <p style="margin-top:0.35rem">
+        <a href="https://github.com/emmanuelemmanueletim/edocApi" target="_blank" rel="noopener">GitHub</a>
+        ·
+        <a href="/api/health">API health</a>
+        ·
+        <a href="/docs-ui">Usage notes</a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

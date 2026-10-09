@@ -4,10 +4,10 @@ from edocapi import App, Document
 
 app = App()
 
-@app.get("/")
+@app.get("/health")
 def home():
     return {
-        "message": "eDocAPI v0.0.2",
+        "message": "eDocAPI v0.1.0",
         "supported_types": Document.supported_types(),
     }
 

@@ -92,7 +92,7 @@ def merge(files):
 
 @app.get("/")
 def home():
-    return {"message": "eDocAPI v0.0.2", "supported": Document.supported_types()}
+    return {"message": "eDocAPI v0.1.0", "supported": Document.supported_types()}
 ```
 
 Run the development server:
@@ -160,7 +160,7 @@ Document(file).info()                     # dict of metadata
 
 ---
 
-## Supported Formats (v0.0.2)
+## Supported Formats (v0.1.0)
 
 | Input     | to_pdf | to_text | to_html | to_images | Notes                  |
 |-----------|--------|---------|---------|-----------|------------------------|

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Docs — eDocAPI Web</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    .docs { max-width: 760px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    .docs h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+    .docs h2 { font-size: 1.2rem; margin: 2rem 0 0.6rem; color: #93c5fd; }
+    .docs p, .docs li { color: var(--text-muted); margin-bottom: 0.6rem; }
+    .docs ul { padding-left: 1.2rem; }
+    .docs code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      background: var(--bg-card);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: #e2e8f0;
+    }
+    .docs pre {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: #c5d0e0;
+      margin: 0.75rem 0 1rem;
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">eD</span>
+        eDocAPI
+      </a>
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a class="active" href="/docs-ui">Docs</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="docs">
+    <h1>Using this web app</h1>
+    <p>This site is built on the <strong style="color:var(--text)">eDocAPI</strong> framework (v{{ version }}). The dashboard calls the same document operations you would expose in your own API.</p>
+
+    <h2>Run the server</h2>
+    <p>From the project root (with eDocAPI installed):</p>
+    <pre>pip install jinja2
+uvicorn webapp.main:app --reload --host 127.0.0.1 --port 8001</pre>
+    <p>Or with the eDocAPI CLI:</p>
+    <pre>edocapi run webapp.main:app --reload --port 8001</pre>
+    <p>Open <code>http://127.0.0.1:8001</code> for the landing page and <code>/dashboard</code> for tools.</p>
+
+    <h2>Dashboard tools</h2>
+    <ul>
+      <li><strong style="color:var(--text)">Convert to PDF</strong> — upload DOCX, images, HTML, Markdown, etc.</li>
+      <li><strong style="color:var(--text)">Extract text</strong> — returns text in the panel</li>
+      <li><strong style="color:var(--text)">Compress / Merge / Split</strong> — PDF operations</li>
+      <li><strong style="color:var(--text)">Document info</strong> — metadata dictionary</li>
+      <li><strong style="color:var(--text)">HTML / Markdown → PDF</strong> — paste content, no file upload</li>
+    </ul>
+
+    <h2>API endpoints</h2>
+    <pre>GET  /api/health
+GET  /api/formats
+POST /api/convert
+POST /api/extract
+POST /api/compress
+POST /api/merge
+POST /api/split-info
+POST /api/extract-pages?start=1&amp;end=3
+POST /api/info
+POST /api/html-to-pdf          (JSON: {"html": "..."})
+POST /api/markdown-to-pdf     (JSON: {"markdown": "..."})</pre>
+
+    <h2>Example: convert with curl</h2>
+    <pre>curl -X POST http://127.0.0.1:8001/api/convert \
+  -F "file=@report.docx" \
+  -o report.pdf</pre>
+
+    <h2>Author</h2>
+    <p>EMMANUEL EMMANUEL ETIM · <a href="https://github.com/emmanuelemmanueletim/edocApi">GitHub</a></p>
+  </div>
+</body>
+</html>

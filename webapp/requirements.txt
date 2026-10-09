@@ -1,0 +1,7 @@
+# eDocAPI web application
+# Install the framework from the parent project first, then:
+
+jinja2>=3.1.0
+
+# Optional (for HTML/Markdown/DOCX -> PDF in the dashboard):
+# weasyprint>=61.0

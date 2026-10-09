@@ -130,9 +130,9 @@ class PDFProcessor(BaseProcessor):
 
         writer = PdfWriter()
         for page in self._reader.pages:
-            # Basic content stream compression
-            page.compress_content_streams()
             writer.add_page(page)
+            # Work on the writer-owned copy; add_page may clone the reader page.
+            writer.pages[-1].compress_content_streams()
 
         # Remove unused objects / metadata for higher levels
         if level in {"medium", "high"}:

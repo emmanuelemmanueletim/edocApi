@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — eDocAPI</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <nav class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark">eD</span>
+        eDocAPI
+      </a>
+      <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a class="active" href="/dashboard">Dashboard</a></li>
+        <li><a href="/docs-ui">Docs</a></li>
+        <li><span style="color:var(--text-muted);font-size:0.85rem">v{{ version }}</span></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="dash-layout" id="dash-root">
+    <aside class="sidebar">
+      <h4>Tools</h4>
+      <div class="side-nav">
+        <button type="button" data-tool="convert" class="active">Convert to PDF</button>
+        <button type="button" data-tool="extract">Extract text</button>
+        <button type="button" data-tool="compress">Compress PDF</button>
+        <button type="button" data-tool="merge">Merge PDFs</button>
+        <button type="button" data-tool="split">Split / pages</button>
+        <button type="button" data-tool="info">Document info</button>
+        <button type="button" data-tool="html2pdf">HTML → PDF</button>
+        <button type="button" data-tool="md2pdf">Markdown → PDF</button>
+      </div>
+      <h4 style="margin-top:1.5rem">Formats</h4>
+      <div style="padding:0.25rem 0.5rem;display:flex;flex-wrap:wrap;gap:0.35rem">
+        {% for t in supported %}
+        <span class="chip">{{ t }}</span>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <div class="panel-header">
+        <h2 id="panel-title">Convert to PDF</h2>
+        <p id="panel-sub">Upload a document and download it as PDF.</p>
+      </div>
+
+      <!-- Shared upload zone (hidden for html/md tools via panels) -->
+      <div id="upload-section">
+        <div class="dropzone" id="dropzone">
+          <div class="dropzone-icon">📁</div>
+          <p><strong>Drop files here</strong> or click to browse</p>
+          <p style="margin-top:0.35rem;font-size:0.85rem">Max 25 MB per file</p>
+        </div>
+        <input type="file" id="file-input" hidden multiple />
+        <div class="file-list" id="file-list"></div>
+      </div>
+
+      <!-- Convert -->
+      <div class="tool-panel active" id="panel-convert">
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="btn-convert">Convert to PDF</button>
+          <span class="status-bar"><span class="spinner" id="spinner"></span></span>
+        </div>
+      </div>
+
+      <!-- Extract -->
+      <div class="tool-panel" id="panel-extract">
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="btn-extract">Extract text</button>
+        </div>
+      </div>
+
+      <!-- Compress -->
+      <div class="tool-panel" id="panel-compress">
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="btn-compress">Compress PDF</button>
+        </div>
+      </div>
+
+      <!-- Merge -->
+      <div class="tool-panel" id="panel-merge">
+        <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:0.5rem">Add two or more PDF files, then merge.</p>
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="btn-merge">Merge PDFs</button>
+        </div>
+      </div>
+
+      <!-- Split -->
+      <div class="tool-panel" id="panel-split">
+        <div class="actions-row">
+          <button type="button" class="btn btn-ghost" id="btn-split-info">Check page count</button>
+        </div>
+        <div class="row-2" style="margin-top:1rem;max-width:420px">
+          <div class="field">
+            <label for="page-start">Start page (1-based)</label>
+            <input type="number" id="page-start" min="1" value="1" />
+          </div>
+          <div class="field">
+            <label for="page-end">End page</label>
+            <input type="number" id="page-end" min="1" value="1" />
+          </div>
+        </div>
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="btn-extract-pages">Extract pages</button>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="tool-panel" id="panel-info">
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="btn-info">Get info</button>
+        </div>
+      </div>
+
+      <!-- HTML to PDF -->
+      <div class="tool-panel" id="panel-html2pdf">
+        <div class="field">
+          <label for="html-input">HTML content</label>
+          <textarea id="html-input" placeholder="<html><body><h1>Invoice</h1><p>Total: 50,000</p></body></html>"></textarea>
+        </div>
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="btn-html2pdf">Generate PDF</button>
+        </div>
+      </div>
+
+      <!-- Markdown to PDF -->
+      <div class="tool-panel" id="panel-md2pdf">
+        <div class="field">
+          <label for="md-input">Markdown content</label>
+          <textarea id="md-input" placeholder="# Hello&#10;&#10;This is **markdown** converted to PDF."></textarea>
+        </div>
+        <div class="actions-row">
+          <button type="button" class="btn btn-primary" id="btn-md2pdf">Generate PDF</button>
+        </div>
+      </div>
+
+      <div class="result-box" id="result"></div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/static/js/app.js"></script>
+  <script>
+    // Hide dropzone for text-only tools
+    (function () {
+      const upload = document.getElementById("upload-section");
+      const orig = window.switchTool;
+      // patch after app.js binds switchTool on buttons — observe panel changes
+      document.querySelectorAll(".side-nav button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const t = btn.dataset.tool;
+          if (upload) {
+            upload.style.display = t === "html2pdf" || t === "md2pdf" ? "none" : "block";
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
