@@ -1,32 +1,6 @@
-"""Example eDocAPI application."""
+"""Default eDocAPI application: the user-facing landing page and tools."""
 
-from edocapi import App, Document
+# Keep ``edocapi run`` pointed at the first app users should see.
+from webapp.main import app
 
-app = App()
-
-@app.get("/health")
-def home():
-    return {
-        "message": "eDocAPI v0.1.0",
-        "supported_types": Document.supported_types(),
-    }
-
-@app.post("/convert")
-def convert(file):
-    return Document(file).to_pdf()
-
-@app.post("/compress")
-def compress(file):
-    return Document(file).compress()
-
-@app.post("/extract")
-def extract(file):
-    return {"text": Document(file).extract_text()}
-
-@app.post("/info")
-def info(file):
-    return Document(file).info()
-
-@app.post("/merge")
-def merge(files):
-    return Document.merge(files)
+__all__ = ["app"]
