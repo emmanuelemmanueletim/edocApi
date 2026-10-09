@@ -14,7 +14,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_version():
-    assert __version__ == "0.0.1"
+    assert __version__ == "0.0.2"
 
 
 def test_supported_types():
@@ -46,6 +46,7 @@ def test_document_from_docx():
 
 
 def test_html_to_pdf():
+    pytest.importorskip("weasyprint", reason="HTML-to-PDF requires the optional html extra")
     doc = Document.html("<html><body><h1>Invoice</h1><p>Total: 50000</p></body></html>")
     pdf = doc.to_pdf()
     assert pdf.type == "pdf"
@@ -53,6 +54,7 @@ def test_html_to_pdf():
 
 
 def test_markdown_to_pdf():
+    pytest.importorskip("weasyprint", reason="Markdown-to-PDF requires the optional html extra")
     doc = Document.markdown("# Hello World\n\nThis is a test.")
     pdf = doc.to_pdf()
     assert pdf.type == "pdf"
