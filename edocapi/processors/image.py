@@ -51,7 +51,7 @@ class ImageProcessor(BaseProcessor):
 
     def to_text(self) -> str:
         raise NotImplementedError(
-            "Text extraction from images requires OCR, which is not available in v0.0.1."
+            "Text extraction from images requires OCR, which is not available in v0.0.2."
         )
 
     def to_images(self, *, format: str = "png") -> list[Path]:

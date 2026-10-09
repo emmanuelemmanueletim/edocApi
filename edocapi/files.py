@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import uuid
 from typing import Any
 
 from starlette.datastructures import UploadFile
@@ -77,6 +78,11 @@ async def extract_uploads(
                 ".txt", ".md", ".markdown", ".html", ".htm"
             }:
                 raise ValidationError("Unable to determine a supported file type from content.")
+
+            named_path = path.with_name(f"{uuid.uuid4().hex}_{safe_name}")
+            path.rename(named_path)
+            storage._files.discard(path)
+            path = storage.register(named_path)
 
             uploads.append(path)
             logger.info("Document uploaded: %s (%d bytes)", safe_name, size)

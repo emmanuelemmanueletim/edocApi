@@ -15,7 +15,7 @@ from edocapi.exceptions import (
 
 logger = logging.getLogger("edocapi.validation")
 
-# Supported formats for v0.0.1
+# Supported formats for v0.0.2
 SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".docx",

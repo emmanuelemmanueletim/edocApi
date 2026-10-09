@@ -48,6 +48,21 @@ pip install edocapi[all]
 pip install -e ".[dev,html]"
 ```
 
+## Build and publish
+
+From the repository root, build and check the package before uploading:
+
+```powershell
+py -m pip install --upgrade build twine
+py -m build
+py -m twine check dist/*
+py -m twine upload dist/*
+```
+
+Use `__token__` as the Twine username and your PyPI API token as the password
+when prompted. Do not commit the token. See [PUBLISH.md](PUBLISH.md) for the
+full checklist.
+
 ---
 
 ## Quick Start
@@ -206,7 +221,7 @@ Available exceptions: `EdocAPIError`, `UnsupportedFileType`, `InvalidDocument`, 
 
 ```bash
 edocapi --version
-edocapi run                  # main:app on http://127.0.0.1:8000
+edocapi run                  # main:app on http://0.0.0.0:8000
 edocapi run --reload
 edocapi run myapp:app --port 8080
 ```

@@ -31,6 +31,11 @@ python -m twine upload dist/*
 Do not commit API tokens. A version already uploaded to PyPI cannot be replaced;
 increment the version for every follow-up release.
 
+For the first upload, build with an empty `dist/` directory so the command cannot
+accidentally include stale artifacts from an earlier version. Verify that the
+filenames are `edocapi-0.0.2.tar.gz` and `edocapi-0.0.2-py3-none-any.whl` before
+uploading.
+
 ## Hosted deployment
 
 Create an application module exposing `app = App()` and run an ASGI server, for
