@@ -103,7 +103,7 @@ edocapi run
 edocapi run --reload
 ```
 
-Open **http://127.0.0.1:8000** in your browser to see the eDocAPI developer dashboard. It shows your registered routes, supported document types, upload limit, and available `Document` operations. The dashboard is enabled by default when you have not registered your own `GET /` route. Set `App(dashboard=False)` to disable it.
+Open **http://127.0.0.1:8000** in your browser to see the eDocAPI developer dashboard for your app. It shows your registered routes, supported document types, upload limit, and available `Document` operations, with a Try it explorer for testing endpoints. The dashboard is enabled by default when you have not registered your own `GET /` route. Set `App(dashboard=False)` to disable it. The separate eDocAPI company site lives in `webapp/`; see [webapp/README.md](webapp/README.md) to run it.
 
 Upload a document to `POST /convert` and receive a PDF.
 

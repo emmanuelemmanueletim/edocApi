@@ -11,14 +11,14 @@ py -m pip install -e .
 # Web app dependency
 py -m pip install -r webapp/requirements.txt
 
-# Start the default app (the landing page and tools) on port 8000
-py -m edocapi.cli.main run --reload --host 127.0.0.1 --port 8000
+# Start the company site and tools on port 8000
+py -m edocapi.cli.main run webapp.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Or:
 
 ```bash
-py -m edocapi.cli.main run --reload --host 127.0.0.1 --port 8000
+py -m edocapi.cli.main run webapp.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Open:
