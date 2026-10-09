@@ -1,0 +1,90 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edocapi"
+version = "0.0.1"
+description = "A lightweight Python framework for building document-processing and document-automation APIs."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    {name = "EMMANUEL EMMANUEL ETIM", email = "emmanuel224etim089@gmail.com"},
+]
+maintainers = [
+    {name = "EMMANUEL EMMANUEL ETIM", email = "emmanuel224etim089@gmail.com"},
+]
+keywords = [
+    "document",
+    "api",
+    "pdf",
+    "docx",
+    "conversion",
+    "starlette",
+    "framework",
+    "document-processing",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: AsyncIO",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Text Processing",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+]
+dependencies = [
+    "starlette>=0.37.0",
+    "python-multipart>=0.0.9",
+    "uvicorn[standard]>=0.27.0",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "markdown>=3.5",
+    "Pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+# HTML / Markdown / DOCX -> PDF (WeasyPrint needs system libs: cairo, pango, gdk-pixbuf)
+html = [
+    "weasyprint>=61.0",
+]
+pdf-images = [
+    "pdf2image>=1.17.0",
+]
+all = [
+    "weasyprint>=61.0",
+    "pdf2image>=1.17.0",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.26.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+]
+
+[project.scripts]
+edocapi = "edocapi.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/emmanuelemmanueletim/edocApi"
+Documentation = "https://github.com/emmanuelemmanueletim/edocApi#readme"
+Repository = "https://github.com/emmanuelemmanueletim/edocApi.git"
+Issues = "https://github.com/emmanuelemmanueletim/edocApi/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["edocapi*"]
+exclude = ["tests*", "tests.*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
