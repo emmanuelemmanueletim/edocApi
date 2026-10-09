@@ -76,7 +76,12 @@ class App:
         async def wrapper(request: Request) -> Response:
             return await self._dispatch(endpoint, request)
 
-        self._routes.append(Route(path, endpoint=wrapper, methods=list(methods)))
+        wrapper.__name__ = endpoint.__name__
+        wrapper.__doc__ = endpoint.__doc__
+        wrapper.__edocapi_endpoint__ = endpoint
+        self._routes.append(
+            Route(path, endpoint=wrapper, methods=list(methods), name=endpoint.__name__)
+        )
 
     def _dashboard_response(self) -> Response:
         """Build the interactive developer dashboard from this app's routes."""
@@ -84,7 +89,29 @@ class App:
         from edocapi.dashboard import render_dashboard
 
         routes = [
-            {"path": route.path, "methods": sorted(route.methods or []), "name": getattr(route.endpoint, "__name__", "endpoint")}
+            {
+                "path": route.path,
+                "methods": sorted(route.methods or []),
+                "name": getattr(route.endpoint, "__name__", "endpoint"),
+                "description": inspect.getdoc(
+                    getattr(route.endpoint, "__edocapi_endpoint__", route.endpoint)
+                ) or "",
+                "parameters": [
+                    {
+                        "name": parameter.name,
+                        "required": parameter.default is inspect.Parameter.empty,
+                        "kind": "upload" if parameter.name in ("file", "files") else "parameter",
+                        "multiple": parameter.name == "files",
+                        "type": getattr(parameter.annotation, "__name__", "string")
+                        if parameter.annotation is not inspect.Parameter.empty
+                        else "string",
+                    }
+                    for parameter in inspect.signature(
+                        getattr(route.endpoint, "__edocapi_endpoint__", route.endpoint)
+                    ).parameters.values()
+                    if parameter.name != "request"
+                ],
+            }
             for route in self._routes
         ]
         return Response(
