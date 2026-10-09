@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "edocapi"
-version = "0.0.1"
+version = "0.0.2"
 description = "A lightweight Python framework for building document-processing and document-automation APIs."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -79,6 +79,9 @@ Homepage = "https://github.com/emmanuelemmanueletim/edocApi"
 Documentation = "https://github.com/emmanuelemmanueletim/edocApi#readme"
 Repository = "https://github.com/emmanuelemmanueletim/edocApi.git"
 Issues = "https://github.com/emmanuelemmanueletim/edocApi/issues"
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]

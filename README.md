@@ -4,7 +4,7 @@
 
 > Simple API for the developer. Powerful document processing underneath.
 
-Built on [Starlette](https://www.starlette.io/). Version **0.0.1**.
+Built on [Starlette](https://www.starlette.io/). Version **0.0.2**.
 
 ---
 
@@ -77,7 +77,7 @@ def merge(files):
 
 @app.get("/")
 def home():
-    return {"message": "eDocAPI v0.0.1", "supported": Document.supported_types()}
+    return {"message": "eDocAPI v0.0.2", "supported": Document.supported_types()}
 ```
 
 Run the development server:
@@ -143,7 +143,7 @@ Document(file).info()                     # dict of metadata
 
 ---
 
-## Supported Formats (v0.0.1)
+## Supported Formats (v0.0.2)
 
 | Input     | to_pdf | to_text | to_html | to_images | Notes                  |
 |-----------|--------|---------|---------|-----------|------------------------|
@@ -158,6 +158,22 @@ Document(file).info()                     # dict of metadata
 \*\* PDF→Images requires optional `pdf2image` + system poppler.
 
 ---
+
+
+## Deploying
+
+The package exposes an ASGI application. In your application's `main.py`, create
+`app = App()` and start it with an ASGI server. For example:
+
+```bash
+uvicorn main:app.asgi --host 0.0.0.0 --port ${PORT:-8000} --workers 2
+```
+
+Keep `debug=False` in hosted environments. If you enable HTML-to-PDF conversion,
+install WeasyPrint's operating-system libraries in the image or host as well as
+the `html` extra. Set the reverse proxy's request-body limit to match
+`max_file_size`; for larger workloads, use a worker queue and monitor temporary
+disk usage.
 
 ## Configuration
 
@@ -225,6 +241,13 @@ pytest
 ```
 
 ---
+
+
+## Release status
+
+eDocAPI is alpha software. Review conversion behavior, optional system
+dependencies, and workload limits before exposing it to untrusted public
+traffic. See [PUBLISH.md](PUBLISH.md) for the release checklist.
 
 ## Roadmap
 

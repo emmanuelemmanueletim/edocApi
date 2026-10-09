@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> None:
     sub = parser.add_subparsers(dest="command")
 
     # edocapi run
-    run_parser = sub.add_parser("run", help="Start the development server")
+    run_parser = sub.add_parser("run", help="Start the ASGI server")
     run_parser.add_argument(
         "app",
         nargs="?",
@@ -33,8 +33,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     run_parser.add_argument(
         "--host",
-        default="127.0.0.1",
-        help="Bind host (default: 127.0.0.1)",
+        default="0.0.0.0",
+        help="Bind host (default: 0.0.0.0)",
     )
     run_parser.add_argument(
         "--port",

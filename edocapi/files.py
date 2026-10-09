@@ -9,9 +9,9 @@ from typing import Any
 from starlette.datastructures import UploadFile
 from starlette.requests import Request
 
-from edocapi.exceptions import ValidationError
-from edocapi.storage.temporary import TemporaryStorage, safe_filename
-from edocapi.validation.files import validate_upload
+from edocapi.exceptions import FileTooLarge, ValidationError
+from edocapi.storage.temporary import TemporaryStorage
+from edocapi.validation.files import detect_type_from_bytes, validate_extension
 
 logger = logging.getLogger("edocapi.files")
 
@@ -57,27 +57,35 @@ async def extract_uploads(
 
     for upload in candidates:
         filename = upload.filename or "unnamed"
-        # Read content
-        content = await upload.read()
-        await upload.close()
+        path: Path | None = None
+        try:
+            safe_name = validate_extension(filename)
+            detected = bytearray()
+            path = storage.create_file(suffix=Path(safe_name).suffix, prefix="upload_")
+            size = 0
+            with path.open("wb") as destination:
+                while chunk := await upload.read(min(64 * 1024, max_size - size + 1)):
+                    size += len(chunk)
+                    if size > max_size:
+                        raise FileTooLarge(size=size, max_size=max_size)
+                    destination.write(chunk)
+                    if len(detected) < 4096:
+                        detected.extend(chunk[:4096 - len(detected)])
 
-        safe_name, data = validate_upload(
-            filename,
-            content,
-            max_size=max_size,
-        )
+            kind = detect_type_from_bytes(bytes(detected))
+            if kind is None and Path(safe_name).suffix.lower() not in {
+                ".txt", ".md", ".markdown", ".html", ".htm"
+            }:
+                raise ValidationError("Unable to determine a supported file type from content.")
 
-        # Write to temporary storage
-        suffix = Path(safe_name).suffix
-        path = storage.create_file(suffix=suffix, prefix="upload_", content=data)
-        # Preserve original safe name for later use
-        path = path.with_name(safe_name)
-        # Re-write under the desired name if needed
-        if not path.exists():
-            path.write_bytes(data)
-            storage.register(path)
-
-        uploads.append(path)
-        logger.info("Document uploaded: %s (%d bytes)", safe_name, len(data))
+            uploads.append(path)
+            logger.info("Document uploaded: %s (%d bytes)", safe_name, size)
+        except Exception:
+            # A rejected or partially written upload must not remain on disk.
+            if path is not None:
+                storage.discard(path)
+            raise
+        finally:
+            await upload.close()
 
     return uploads

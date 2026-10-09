@@ -31,7 +31,8 @@ class TemporaryStorage:
             self._owned = True
 
         self._files: set[Path] = set()
-        atexit.register(self.cleanup)
+        self._cleanup_callback = self.cleanup
+        atexit.register(self._cleanup_callback)
         logger.debug("Temporary storage created at %s", self._root)
 
     @property
@@ -68,6 +69,15 @@ class TemporaryStorage:
         self._files.add(path)
         return path
 
+    def discard(self, path: Path | str) -> None:
+        """Remove a file from managed storage after its response is sent."""
+        path = Path(path)
+        self._files.discard(path)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("Failed to remove temporary file %s: %s", path, exc)
+
     def cleanup(self) -> None:
         """Remove all tracked files and, if owned, the root directory."""
         for path in list(self._files):
@@ -86,6 +96,12 @@ class TemporaryStorage:
                 logger.debug("Removed temporary root %s", self._root)
             except OSError as exc:
                 logger.warning("Failed to remove temp root %s: %s", self._root, exc)
+
+        # The instance may be explicitly cleaned up before interpreter exit.
+        try:
+            atexit.unregister(self._cleanup_callback)
+        except Exception:
+            pass
 
     def __enter__(self) -> "TemporaryStorage":
         return self

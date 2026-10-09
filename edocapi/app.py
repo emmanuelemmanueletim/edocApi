@@ -192,10 +192,18 @@ class App:
         if isinstance(result, Document):
             # Document returned directly  treat as file response
             path = result.path
-            return FileResponse(path, filename=path.name)
+            return FileResponse(
+                path,
+                filename=path.name,
+                background=self._cleanup_callback(path, result._temp),
+            )
 
         if isinstance(result, Path):
-            return FileResponse(result, filename=result.name)
+            return FileResponse(
+                result,
+                filename=result.name,
+                background=self._cleanup_callback(result, self._temp_storage),
+            )
 
         if isinstance(result, (dict, list)):
             return JSONResponse(result)
@@ -208,6 +216,13 @@ class App:
 
         # Fallback
         return JSONResponse({"result": str(result)})
+
+    @staticmethod
+    def _cleanup_callback(path: Path, storage: TemporaryStorage):
+        """Clean up managed output files after Starlette finishes streaming."""
+        from starlette.background import BackgroundTask
+
+        return BackgroundTask(storage.discard, path) if path in storage._files else None
 
     # ------------------------------------------------------------------
     # ASGI interface

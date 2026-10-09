@@ -2,12 +2,12 @@
 
 from edocapi import App, Document
 
-app = App(debug=True)
+app = App()
 
 @app.get("/")
 def home():
     return {
-        "message": "eDocAPI v0.0.1",
+        "message": "eDocAPI v0.0.2",
         "supported_types": Document.supported_types(),
     }
 
