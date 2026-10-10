@@ -53,17 +53,19 @@
 
     <h2>Run the server</h2>
     <p>From the project root (with eDocAPI installed):</p>
-    <pre>pip install jinja2
-uvicorn webapp.main:app --reload --host 127.0.0.1 --port 8001</pre>
+    <pre>py -m pip install -r webapp/requirements.txt
+py -m edocapi.cli.main run webapp.main:app --reload --host 127.0.0.1 --port 8000</pre>
     <p>Or with the eDocAPI CLI:</p>
-    <pre>edocapi run webapp.main:app --reload --port 8001</pre>
-    <p>Open <code>http://127.0.0.1:8001</code> for the landing page and <code>/dashboard</code> for tools.</p>
+    <pre>py -m edocapi.cli.main run webapp.main:app --reload --host 127.0.0.1 --port 8000</pre>
+    <p>Open <code>http://127.0.0.1:8000</code> for the landing page and <code>/dashboard</code> for tools.</p>
 
     <h2>Dashboard tools</h2>
+    <p>Document-to-PDF conversion works without extra Windows setup. If WeasyPrint cannot load native libraries, eDocAPI automatically creates a readable paginated PDF from the text; styled layout may differ.</p>
     <ul>
       <li><strong style="color:var(--text)">Convert to PDF</strong> — upload DOCX, images, HTML, Markdown, etc.</li>
       <li><strong style="color:var(--text)">Extract text</strong> — returns text in the panel</li>
-      <li><strong style="color:var(--text)">Compress / Merge / Split</strong> — PDF operations</li>
+      <li><strong style="color:var(--text)">Compress</strong> — PDF, JPG/JPEG, PNG, and WebP</li>
+      <li><strong style="color:var(--text)">Merge / Split</strong> — PDF operations</li>
       <li><strong style="color:var(--text)">Document info</strong> — metadata dictionary</li>
       <li><strong style="color:var(--text)">HTML / Markdown → PDF</strong> — paste content, no file upload</li>
     </ul>
@@ -73,7 +75,7 @@ uvicorn webapp.main:app --reload --host 127.0.0.1 --port 8001</pre>
 GET  /api/formats
 POST /api/convert
 POST /api/extract
-POST /api/compress
+POST /api/compress?target_size_value=20&amp;target_unit=KB|MB
 POST /api/merge
 POST /api/split-info
 POST /api/extract-pages?start=1&amp;end=3

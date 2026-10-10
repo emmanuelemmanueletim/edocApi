@@ -21,9 +21,27 @@ def convert(file):
 
 
 @app.post("/compress")
-def compress(file):
-    """Compress an uploaded PDF."""
-    return Document(file).compress()
+def compress(file, target_size_value: str = "", target_unit: str = "MB"):
+    """Compress a PDF or JPG/JPEG/PNG/WebP image, optionally setting a maximum size."""
+    target_bytes = None
+    if target_size_value:
+        units = {"KB": 1024, "MB": 1024 * 1024}
+        unit = target_unit.upper()
+        if unit not in units:
+            from edocapi.exceptions import ProcessingError
+            raise ProcessingError("Target unit must be KB or MB.")
+        try:
+            target_bytes = int(float(target_size_value) * units[unit])
+        except ValueError as exc:
+            from edocapi.exceptions import ProcessingError
+            raise ProcessingError("Target size must be a number.") from exc
+    document = Document(file)
+    if document.type not in {"pdf", "jpeg", "jpg", "png", "webp"}:
+        from edocapi.exceptions import ProcessingError
+        raise ProcessingError(
+            "Compression supports PDF, JPG, JPEG, PNG, and WebP files only."
+        )
+    return document.compress(target_size=target_bytes)
 
 
 @app.post("/extract")

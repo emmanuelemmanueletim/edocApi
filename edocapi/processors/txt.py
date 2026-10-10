@@ -33,18 +33,17 @@ class TXTProcessor(BaseProcessor):
         html = self.to_html()
         try:
             from weasyprint import HTML
-        except ImportError as exc:
-            from edocapi.exceptions import ConversionError
-            raise ConversionError(
-                "TXT -> PDF requires weasyprint. Install with: pip install edocapi[html]",
-                source="txt",
-                target="pdf",
-            ) from exc
+        except (ImportError, OSError):
+            HTML = None
 
         storage = self.temp_storage or TemporaryStorage()
         out = storage.create_file(suffix=".pdf", prefix="txt_")
-        HTML(string=html).write_pdf(str(out))
-        return out
+        from edocapi.processors.simple_pdf import render_html_pdf, render_text_pdf
+
+        text = self.to_text()
+        if HTML is None:
+            return render_text_pdf(text, out)
+        return render_html_pdf(html, out, text)
 
     def info(self) -> dict[str, Any]:
         content = self.to_text()

@@ -16,13 +16,13 @@ Built on [Starlette](https://www.starlette.io/). Version **0.1.0**.
 pip install edocapi
 ```
 
-**With HTML/Markdown/DOCX → PDF** (pulls in WeasyPrint):
+**With enhanced HTML/Markdown/DOCX → PDF layout** (pulls in WeasyPrint):
 
 ```bash
 pip install edocapi[html]
 ```
 
-WeasyPrint needs system libraries. On Debian/Ubuntu:
+WeasyPrint may need system libraries for enhanced layout. On Debian/Ubuntu:
 
 ```bash
 sudo apt-get install -y libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
@@ -92,7 +92,7 @@ def merge(files):
 
 @app.get("/")
 def home():
-    return {"message": "eDocAPI v0.1.0", "supported": Document.supported_types()}
+    return {"message": f"eDocAPI v{__version__}", "supported": Document.supported_types()}
 ```
 
 Run the development server:
@@ -158,9 +158,18 @@ Document.merge([file1, file2])
 Document(file).info()                     # dict of metadata
 ```
 
+`Document(file).compress(target_size=20 * 1024, level="medium")` optionally
+targets a maximum output size in bytes. PDFs are optimized and their output
+size is checked; text-based PDFs can be rebuilt with simplified layout and
+without original graphics if needed. Image files with JPG/JPEG, PNG, or WebP
+extensions are recompressed and retain their image format. Image compression
+can reduce color detail. Some target sizes cannot be reached. Without a
+target, the compressor returns the original if recompression would make it
+larger. Other document types are not accepted by `compress()`.
+
 ---
 
-## Supported Formats (v0.1.0)
+## Supported Formats
 
 | Input     | to_pdf | to_text | to_html | to_images | Notes                  |
 |-----------|--------|---------|---------|-----------|------------------------|
@@ -186,9 +195,9 @@ The package exposes an ASGI application. In your application's `main.py`, create
 uvicorn main:app.asgi --host 0.0.0.0 --port ${PORT:-8000} --workers 2
 ```
 
-Keep `debug=False` in hosted environments. If you enable HTML-to-PDF conversion,
-install WeasyPrint's operating-system libraries in the image or host as well as
-the `html` extra. Set the reverse proxy's request-body limit to match
+Keep `debug=False` in hosted environments. HTML, Markdown, TXT, and DOCX PDF
+conversion have a Pillow text-rendering fallback; install WeasyPrint's
+operating-system libraries for richer layout. Set the reverse proxy's request-body limit to match
 `max_file_size`; for larger workloads, use a worker queue and monitor temporary
 disk usage.
 

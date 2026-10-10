@@ -156,6 +156,12 @@ def validate_file(
     if detected and ext_type and detected != ext_type:
         # Allow some flexibility (e.g. .txt that looks like markdown)
         if not (detected in ("txt", "markdown") and ext_type in ("txt", "markdown")):
+            image_types = {"jpeg", "png", "webp"}
+            if detected in image_types or ext_type in image_types:
+                raise InvalidDocument(
+                    f"File content is {detected}, but the .{ext.lstrip('.')} extension "
+                    "does not match. Rename the file to the correct image extension."
+                )
             logger.warning(
                 "Magic type %s does not match extension type %s for %s",
                 detected,

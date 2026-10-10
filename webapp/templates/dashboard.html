@@ -28,7 +28,7 @@
       <div class="side-nav">
         <button type="button" data-tool="convert" class="active">Convert to PDF</button>
         <button type="button" data-tool="extract">Extract text</button>
-        <button type="button" data-tool="compress">Compress PDF</button>
+        <button type="button" data-tool="compress">Compress files</button>
         <button type="button" data-tool="merge">Merge PDFs</button>
         <button type="button" data-tool="split">Split / pages</button>
         <button type="button" data-tool="info">Document info</button>
@@ -56,7 +56,7 @@
           <p><strong>Drop files here</strong> or click to browse</p>
           <p style="margin-top:0.35rem;font-size:0.85rem">Max 25 MB per file</p>
         </div>
-        <input type="file" id="file-input" hidden multiple />
+        <input type="file" id="file-input" hidden multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.html,.htm,.md,.markdown,.txt" />
         <div class="file-list" id="file-list"></div>
       </div>
 
@@ -77,8 +77,16 @@
 
       <!-- Compress -->
       <div class="tool-panel" id="panel-compress">
+        <div class="field" style="max-width:320px">
+          <label for="target-size">Preferred maximum size (optional)</label>
+          <div class="row-2">
+            <input type="number" id="target-size" min="1" step="1" placeholder="e.g. 20" />
+            <select id="target-unit"><option value="KB">KB</option><option value="MB" selected>MB</option></select>
+          </div>
+          <small class="muted">Supported: PDF, JPG, JPEG, PNG, and WebP. The downloaded image keeps its original format.</small>
+        </div>
         <div class="actions-row">
-          <button type="button" class="btn btn-primary" id="btn-compress">Compress PDF</button>
+          <button type="button" class="btn btn-primary" id="btn-compress">Compress file</button>
         </div>
       </div>
 
@@ -144,7 +152,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/app.js?v=2"></script>
   <script>
     // Hide dropzone for text-only tools
     (function () {

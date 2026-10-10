@@ -82,18 +82,17 @@ class DOCXProcessor(BaseProcessor):
         html = self.to_html()
         try:
             from weasyprint import HTML
-        except ImportError as exc:
-            raise ConversionError(
-                "DOCX -> PDF requires weasyprint. "
-                "Install with: pip install edocapi[html]",
-                source="docx",
-                target="pdf",
-            ) from exc
+        except (ImportError, OSError):
+            HTML = None
 
         storage = self.temp_storage or TemporaryStorage()
         out = storage.create_file(suffix=".pdf", prefix="docx_")
-        HTML(string=html).write_pdf(str(out))
-        return out
+        from edocapi.processors.simple_pdf import html_to_text, render_html_pdf, render_text_pdf
+
+        fallback_text = self.to_text()
+        if HTML is None:
+            return render_text_pdf(fallback_text, out)
+        return render_html_pdf(html, out, fallback_text or html_to_text(html))
 
     def info(self) -> dict[str, Any]:
         core = self._doc.core_properties

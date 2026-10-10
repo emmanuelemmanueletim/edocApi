@@ -38,18 +38,18 @@ class HTMLProcessor(BaseProcessor):
         """Convert HTML to PDF using WeasyPrint."""
         try:
             from weasyprint import HTML
-        except ImportError as exc:
-            raise ConversionError(
-                "HTML -> PDF requires weasyprint. "
-                "Install with: pip install edocapi[html]",
-                source="html",
-                target="pdf",
-            ) from exc
+        except (ImportError, OSError):
+            HTML = None
 
         storage = self.temp_storage or TemporaryStorage()
         out = storage.create_file(suffix=".pdf", prefix="html_")
-        HTML(filename=str(self.path)).write_pdf(str(out))
-        return out
+        from edocapi.processors.simple_pdf import html_to_text, render_html_pdf, render_text_pdf
+
+        source = self.path.read_text(encoding="utf-8", errors="replace")
+        text = html_to_text(source)
+        if HTML is None:
+            return render_text_pdf(text, out)
+        return render_html_pdf(source, out, text)
 
     def info(self) -> dict[str, Any]:
         content = self.path.read_text(encoding="utf-8", errors="replace")

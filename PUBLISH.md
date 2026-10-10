@@ -5,8 +5,14 @@ PyPI credentials and is a separate step from preparing the package.
 
 ## Before release
 
-1. Update the version in `pyproject.toml`, `edocapi/__init__.py`, and README.
-2. Review the changes and run the project test suite on supported Python versions.
+This change set intentionally keeps the package version at **0.1.0**. First
+check whether that version has already been published to PyPI and whether the
+GitHub tag `v0.1.0` already exists. PyPI versions cannot be overwritten. If
+either release already exists, do not reuse its version; prepare a new version
+before publishing.
+
+1. Review the pending changes and release notes.
+2. Run the project's checks on supported Python versions.
 3. Build and inspect both distributions:
 
    ```bash
@@ -17,55 +23,46 @@ PyPI credentials and is a separate step from preparing the package.
 
 4. Install the wheel in a clean environment and verify `import edocapi`, the
    `edocapi --version` command, and the documented optional extras.
-5. Upload to TestPyPI and install the candidate package from a clean environment.
+5. Build and verify a candidate locally. Upload to TestPyPI only if you want a
+   separate pre-release check; it is not required for the production upload.
 
 ## eDocAPI 0.1.0 release notes
 
-### Highlights
-
-- Add an automatically generated developer dashboard at `/` showing the app's
-  registered routes, supported document formats, upload limit, and document
-  operations.
-- Keep a developer-defined `GET /` route in control; disable the built-in
-  dashboard with `App(dashboard=False)`.
-- Document the local development server workflow and dashboard URL.
-
-### Compatibility
-
-- This release remains alpha software and keeps the existing document
-  conversion API and optional dependency model.
-- Dashboard behavior is additive for apps without a `GET /` route.
+Use [RELEASE_NOTES_0.1.0.md](RELEASE_NOTES_0.1.0.md) as the detailed GitHub
+release description. This update includes the built-in developer dashboard,
+PDF and image compression, safer image type checking, document conversion
+fallbacks, and improvements to the separate example company web application.
 
 ### GitHub release note
 
 Create a GitHub release for tag `v0.1.0` with title `eDocAPI 0.1.0` and use
 the contents of [RELEASE_NOTES_0.1.0.md](RELEASE_NOTES_0.1.0.md) as its body.
-Publish the source tag and GitHub release after the TestPyPI candidate has
-been reviewed.
 
-### TestPyPI note
+### PyPI release note
 
-This is a **TestPyPI candidate** for validating the 0.1.0 package build and
-installation. TestPyPI is a separate test index; installing from it may require
-specifying `--index-url https://test.pypi.org/simple/` and the production PyPI
-index as `--extra-index-url` for dependencies. This candidate note does not
-announce a production PyPI release.
+The source metadata remains at version 0.1.0. Confirm that this exact version
+is not already published before uploading. It includes the built-in developer
+dashboard and API explorer, target-size PDF compression, JPG/JPEG/PNG/WebP
+compression, conversion fallback support, and the standalone example company
+site under `webapp/`.
 
-### Build, check, and upload to TestPyPI
+### Build, check, and upload to PyPI
 
-Build from a clean distribution directory, then check and upload explicitly to
-the TestPyPI repository:
+Build from a clean distribution directory and check the files. Only upload if
+PyPI confirms `0.1.0` is still available:
 
 ```bash
 python -m pip install --upgrade build twine
 python -m build
 python -m twine check dist/*
-python -m twine upload --repository testpypi dist/*
+# Run only after confirming the version is not already published:
+python -m twine upload dist/*
 ```
 
-Confirm the artifacts are named `edocapi-0.1.0.tar.gz` and
-`edocapi-0.1.0-py3-none-any.whl`. Do not upload these same artifacts to the
-production PyPI repository unless you intend to make the public release.
+Confirm the artifacts are `edocapi-0.1.0.tar.gz` and
+`edocapi-0.1.0-py3-none-any.whl`. Do not upload stale artifacts from older
+versions. If those filenames already exist on PyPI, stop and bump the package
+version for a follow-up release.
 
 ## Publish
 

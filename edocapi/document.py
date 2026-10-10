@@ -146,8 +146,15 @@ class Document:
             out_path = self._processor().to_pdf()
             return Document(out_path, temp_storage=self._temp)
         except Exception as exc:
+            message = str(exc)
+            if "libgobject" in message.lower() or "cannot load library" in message.lower():
+                message = (
+                    "WeasyPrint's native GTK libraries are missing. On Windows, "
+                    "install the GTK3 runtime, add its bin directory to PATH, "
+                    "then restart the terminal and server."
+                )
             raise ConversionError(
-                str(exc), source=self.type, target="pdf"
+                message, source=self.type, target="pdf"
             ) from exc
 
     def to_text(self) -> str:
@@ -215,15 +222,28 @@ class Document:
                 "mime_type": self.mime_type,
             }
 
-    def compress(self, level: str = "medium") -> "Document":
-        """Compress a PDF. Returns a new Document."""
+    def compress(self, level: str = "medium", target_size: int | None = None) -> "Document":
+        """Compress a PDF or supported raster image; optionally set a byte target."""
+        if self.type in {"jpeg", "jpg", "png", "webp"}:
+            from edocapi.processors.image import ImageProcessor
+
+            proc = ImageProcessor(self.path, temp_storage=self._temp)
+            out = proc.compress(level=level, target_size=target_size)
+            result = Document(out, temp_storage=self._temp)
+            result._original_name = self.name
+            result._compression_mode = "image"
+            return result
         if self.type != "pdf":
-            raise ProcessingError("compress() is only available for PDF documents.")
+            raise ProcessingError(
+                "compress() supports PDF, JPG, JPEG, PNG, and WebP files only."
+            )
         from edocapi.processors.pdf import PDFProcessor
 
         proc = PDFProcessor(self.path, temp_storage=self._temp)
-        out = proc.compress(level=level)
-        return Document(out, temp_storage=self._temp)
+        out = proc.compress(level=level, target_size=target_size)
+        result = Document(out, temp_storage=self._temp)
+        result._compression_mode = getattr(proc, "_last_compression_mode", "optimized")
+        return result
 
     def split(self) -> list["Document"]:
         """Split a PDF into individual pages."""

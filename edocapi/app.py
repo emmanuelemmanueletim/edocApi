@@ -180,6 +180,12 @@ class App:
                     temp_storage=self._temp_storage,
                 )
 
+            form_data = None
+            if uploads and request.headers.get("content-type", "").startswith(
+                "multipart/form-data"
+            ):
+                form_data = await request.form()
+
             for name, param in sig.parameters.items():
                 if name == "request":
                     kwargs["request"] = request
@@ -193,12 +199,14 @@ class App:
                     kwargs["files"] = uploads
                 elif name in request.path_params:
                     kwargs[name] = request.path_params[name]
+                elif form_data is not None and name in form_data:
+                    kwargs[name] = form_data[name]
+                elif name in request.query_params:
+                    kwargs[name] = request.query_params[name]
                 elif param.default is not inspect.Parameter.empty:
                     continue
                 else:
-                    # Try query params as fallback
-                    if name in request.query_params:
-                        kwargs[name] = request.query_params[name]
+                    continue
 
             # Call the endpoint (sync or async)
             if inspect.iscoroutinefunction(endpoint):
@@ -235,9 +243,18 @@ class App:
         if isinstance(result, Document):
             # Document returned directly  treat as file response
             path = result.path
+            headers = {}
+            compression_mode = getattr(result, "_compression_mode", None)
+            if compression_mode:
+                headers["X-Edocapi-Compression-Mode"] = compression_mode
+            filename = path.name
+            if compression_mode == "image":
+                original_name = Path(getattr(result, "_original_name", path.name))
+                filename = f"compressed_{original_name.stem}{path.suffix.lower()}"
             return FileResponse(
                 path,
-                filename=path.name,
+                filename=filename,
+                headers=headers,
                 background=self._cleanup_callback(path, result._temp),
             )
 

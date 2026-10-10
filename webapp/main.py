@@ -95,7 +95,7 @@ def formats():
         "operations": [
             {"id": "convert", "label": "Convert to PDF"},
             {"id": "extract", "label": "Extract text"},
-            {"id": "compress", "label": "Compress PDF"},
+            {"id": "compress", "label": "Compress PDF and images"},
             {"id": "merge", "label": "Merge PDFs"},
             {"id": "split", "label": "Split / extract pages"},
             {"id": "info", "label": "Document info"},
@@ -128,11 +128,24 @@ def api_extract(file):
 
 
 @app.post("/api/compress")
-def api_compress(file):
+def api_compress(file, target_size_value: str = "", target_unit: str = "MB"):
     doc = Document(file)
-    if doc.type != "pdf":
-        raise EdocAPIError("Compress only works with PDF files. Upload a PDF.")
-    return doc.compress(level="medium")
+    if doc.type not in {"pdf", "jpeg", "jpg", "png", "webp"}:
+        raise EdocAPIError(
+            "Compression supports PDF, JPG, JPEG, PNG, and WebP files only."
+        )
+    target_bytes = None
+    if target_size_value:
+        try:
+            multiplier = {"KB": 1024, "MB": 1024 * 1024}[target_unit.upper()]
+            target_bytes = int(float(target_size_value) * multiplier)
+        except KeyError as exc:
+            raise EdocAPIError("Target unit must be KB or MB.") from exc
+        except ValueError as exc:
+            raise EdocAPIError("Target size must be a valid number.") from exc
+        if target_bytes <= 0:
+            raise EdocAPIError("Target size must be greater than zero.")
+    return doc.compress(level="medium", target_size=target_bytes)
 
 
 @app.post("/api/merge")

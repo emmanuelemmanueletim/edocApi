@@ -65,7 +65,7 @@ function switchTool(id) {
   const titles = {
     convert: ["Convert to PDF", "Upload a document and download it as PDF."],
     extract: ["Extract text", "Pull plain text out of PDF, DOCX, HTML, Markdown, or TXT."],
-    compress: ["Compress PDF", "Reduce PDF file size with medium compression."],
+    compress: ["Compress files", "Reduce PDF, JPG, JPEG, PNG, and WebP file sizes."],
     merge: ["Merge PDFs", "Combine multiple PDF files into one document."],
     split: ["Split / extract pages", "Check page count or extract a page range from a PDF."],
     info: ["Document info", "Inspect metadata: type, size, pages, author, and more."],
@@ -208,14 +208,41 @@ async function runExtract() {
 }
 
 async function runCompress() {
-  if (!state.files.length) return toast("Choose a PDF first", "error");
+  if (!state.files.length) return toast("Choose a PDF or supported image first", "error");
   setLoading(true);
   try {
-    const res = await postFile("/api/compress", state.files[0]);
+    const target = Number($("#target-size")?.value || 0);
+    const unit = $("#target-unit")?.value || "MB";
+    if (target < 0) return toast("Target size must be greater than zero", "error");
+    const url = target > 0
+      ? `/api/compress?target_size_value=${encodeURIComponent(target)}&target_unit=${encodeURIComponent(unit)}`
+      : "/api/compress";
+    const originalSize = state.files[0].size;
+    const extension = state.files[0].name.split(".").pop().toLowerCase();
+    if (!["pdf", "jpg", "jpeg", "png", "webp"].includes(extension)) {
+      throw new Error("Compression supports PDF, JPG, JPEG, PNG, and WebP files only.");
+    }
+    const res = await postFile(url, state.files[0]);
     if (!res.ok) throw new Error(await parseError(res));
-    await downloadFromResponse(res, "compressed.pdf");
-    showResult(`<div class="result-title">Compression complete</div><p>Compressed PDF downloaded.</p>`);
-    toast("Compressed PDF ready");
+    const compressed = await res.blob();
+    const compressionMode = res.headers.get("X-Edocapi-Compression-Mode");
+    const targetBytes = target * (unit === "KB" ? 1024 : 1024 * 1024);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(compressed);
+    const originalName = state.files[0].name;
+    const stem = originalName.replace(/\.[^.]+$/, "");
+    const outputExtension = extension === "jpeg" ? "jpg" : extension;
+    a.download = `compressed_${stem}.${outputExtension}`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    const targetNote = target > 0 && compressed.size > targetBytes
+      ? `<p>Target not reached (${target} ${unit}); downloaded the smallest result available.</p>`
+      : target > 0 ? `<p>Target reached: ${target} ${unit}.</p>` : "";
+    const modeNote = compressionMode === "text-reflow"
+      ? "<p>To meet the target, the PDF was rebuilt from extracted text; original styling and graphics were simplified.</p>"
+      : "";
+    showResult(`<div class="result-title">Compression complete</div><p>${formatBytes(originalSize)} → ${formatBytes(compressed.size)}</p>${targetNote}${modeNote}`);
+    toast(`Compressed ${extension.toUpperCase()} file ready`);
   } catch (e) {
     showResult(`<div class="result-title">Error</div><p>${escapeHtml(e.message)}</p>`, false);
     toast(e.message, "error");
