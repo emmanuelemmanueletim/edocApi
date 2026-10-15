@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edocapi"
+version = "0.1.1"
+description = "A pure-Python, framework-independent library and lightweight API for professional document processing, conversion, and automation."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    {name = "EMMANUEL EMMANUEL ETIM", email = "emmanuel224etim089@gmail.com"},
+]
+maintainers = [
+    {name = "EMMANUEL EMMANUEL ETIM", email = "emmanuel224etim089@gmail.com"},
+]
+keywords = [
+    "document",
+    "api",
+    "pdf",
+    "docx",
+    "conversion",
+    "ocr",
+    "ml",
+    "document-processing",
+    "automation",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Text Processing",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Typing :: Typed",
+]
+dependencies = [
+    "python-multipart>=0.0.9",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "reportlab>=4.2.0",
+    "markdown>=3.5",
+    "Pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+# HTML / Markdown -> high-quality PDF (DOCX uses ReportLab in core dependencies)
+html = [
+    "weasyprint>=61.0",
+]
+# PDF page rendering to images
+pdf-images = [
+    "pdf2image>=1.17.0",
+]
+# ML / OCR features (text from images & scanned PDFs)
+ml = [
+    "pytesseract>=0.3.10",
+    "opencv-python-headless>=4.8.0",
+]
+# Full feature set
+all = [
+    "weasyprint>=61.0",
+    "pdf2image>=1.17.0",
+    "pytesseract>=0.3.10",
+    "opencv-python-headless>=4.8.0",
+]
+# Server runtime (ASGI server)
+server = [
+    "uvicorn[standard]>=0.27.0",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.26.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+]
+
+[project.scripts]
+edocapi = "edocapi.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/emmanuelemmanueletim/edocApi"
+Documentation = "https://github.com/emmanuelemmanueletim/edocApi#readme"
+Repository = "https://github.com/emmanuelemmanueletim/edocApi.git"
+Issues = "https://github.com/emmanuelemmanueletim/edocApi/issues"
+Changelog = "https://github.com/emmanuelemmanueletim/edocApi/blob/main/RELEASE_NOTES_0.1.1.md"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["edocapi*"]
+exclude = ["tests*", "tests.*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
