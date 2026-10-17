@@ -4,7 +4,7 @@
 
 Version **0.1.2** focuses on predictable failures, safer uploads, and release reliability.
 
-[![PyPI](https://img.shields.io/pypi/v/edocapi)](https://pypi.org/project/edocapi/)
+[![PyPI](https://img.shields.io/pypi/v/edocapi?cacheSeconds=300)](https://pypi.org/project/edocapi/)
 [![Python](https://img.shields.io/pypi/pyversions/edocapi)](https://pypi.org/project/edocapi/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
