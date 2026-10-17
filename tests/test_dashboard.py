@@ -13,6 +13,14 @@ def test_dashboard_response_has_editable_document_toolbar():
     assert "function renderEditor" in page
 
 
+def test_dashboard_displays_packaged_logo_and_favicon():
+    page = render_dashboard([], ["pdf"], 10_000_000)
+
+    assert '<img class="logo" src="data:image/png;base64,' in page
+    assert 'alt="eDocAPI logo"' in page
+    assert '<link rel="icon" type="image/png" href="data:image/png;base64,' in page
+
+
 def test_dashboard_displays_rate_limit_metadata():
     page = render_dashboard(
         [{

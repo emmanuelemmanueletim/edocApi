@@ -1,5 +1,7 @@
 # eDocAPI
 
+![eDocAPI logo](https://raw.githubusercontent.com/emmanuelemmanueletim/edocApi/main/edocapi/logo/assets/logo.png)
+
 **A Python toolkit for practical document workflows.**
 
 Version **0.2.0** is the current source release version.

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence
+import base64
 from html import escape
+from importlib.resources import files
+from typing import Any, Sequence
 
 
 def render_dashboard(
@@ -14,6 +16,10 @@ def render_dashboard(
     """Return the interactive eDocAPI dashboard for exploring document routes."""
     max_mb = max_file_size / (1024 * 1024)
     type_list = escape(", ".join(supported_types) or "none")
+    logo_bytes = files("edocapi").joinpath(
+        "logo", "assets", "favicon-64x64.png"
+    ).read_bytes()
+    logo_data_uri = "data:image/png;base64," + base64.b64encode(logo_bytes).decode("ascii")
 
     route_cards = []
     for idx, r in enumerate(routes):
@@ -367,6 +373,7 @@ def render_dashboard(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="{logo_data_uri}">
 <title>eDocAPI · Developer Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -855,7 +862,7 @@ def render_dashboard(
 <body>
   <div class="container">
     <header class="header">
-      <div class="logo" aria-hidden="true">e</div>
+      <img class="logo" src="{logo_data_uri}" alt="eDocAPI logo">
       <div class="brand">
         <h1>eDocAPI</h1>
         <p class="tagline">Document workflows in one place <span class="version">v0.2.0</span></p>

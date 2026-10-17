@@ -5,6 +5,7 @@ include RELEASE_NOTES_0.2.0.md
 exclude RELEASE_NOTES_0.1.1.md
 include pyproject.toml
 recursive-include edocapi *.py
+recursive-include edocapi/logo/assets *.png *.ico
 recursive-exclude * __pycache__
 recursive-exclude * *.py[cod]
 recursive-exclude * .pytest_cache
