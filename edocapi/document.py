@@ -186,10 +186,14 @@ class Document:
         if not hasattr(proc, "compress"):
             raise ProcessingError(f"Compression not supported for type '{self.type}'.")
         out = proc.compress(target_size=target_size)
-        doc = Document(out, filename=out.name, doc_type=self.type, temp_storage=self._temp)
+        output_type = out.suffix.lower().lstrip(".")
+        doc = Document(out, filename=out.name, doc_type=output_type, temp_storage=self._temp)
         doc._compression_mode = "image" if self.type in {"jpeg", "jpg", "png", "webp"} else "pdf"
         doc._original_name = self.name
-        if self.type == "pdf" and target_size is not None:
+        if doc._compression_mode == "image" and target_size is not None:
+            doc._compression_target_met = out.stat().st_size <= target_size
+            doc._compression_target_size = target_size
+        elif self.type == "pdf" and target_size is not None:
             doc._compression_target_met = out.stat().st_size <= target_size
             doc._compression_target_size = target_size
         return doc

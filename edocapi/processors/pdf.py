@@ -530,50 +530,53 @@ class PDFProcessor(BaseProcessor):
                 (0.1, 35),
             ])
 
-        compressed = b""
-        for scale, quality in candidates:
-            writer = PdfWriter()
-            for page in self._reader.pages:
-                writer.add_page(page)
+        compressed = self.path.read_bytes()
+        if target_size is None or len(compressed) > target_size:
+            for scale, quality in candidates:
+                writer = PdfWriter()
+                for page in self._reader.pages:
+                    writer.add_page(page)
 
-            reencoded_images = 0
-            if quality is not None:
+                reencoded_images = 0
+                if quality is not None:
+                    for page in writer.pages:
+                        for image_file in getattr(page, "images", ()):
+                            replace_image = getattr(image_file, "replace", None)
+                            if (
+                                not callable(replace_image)
+                                or getattr(image_file, "is_inline", False)
+                                or getattr(image_file, "indirect_reference", None) is None
+                            ):
+                                continue
+                            image = image_file.image
+                            if "A" in image.mode or "transparency" in image.info:
+                                continue
+                            if image.mode == "1":
+                                image = image.convert("L")
+                            elif image.mode not in {"L", "RGB", "CMYK"}:
+                                image = image.convert("RGB")
+                            if scale < 1:
+                                width = max(1, round(image.width * scale))
+                                height = max(1, round(image.height * scale))
+                                image = image.resize(
+                                    (width, height),
+                                    resample=Image.Resampling.LANCZOS,
+                                )
+                            replace_image(image, quality=quality, optimize=True)
+                            reencoded_images += 1
+
                 for page in writer.pages:
-                    for image_file in getattr(page, "images", ()):
-                        replace_image = getattr(image_file, "replace", None)
-                        if (
-                            not callable(replace_image)
-                            or getattr(image_file, "is_inline", False)
-                            or getattr(image_file, "indirect_reference", None) is None
-                        ):
-                            continue
-                        image = image_file.image
-                        if "A" in image.mode or "transparency" in image.info:
-                            continue
-                        if image.mode == "1":
-                            image = image.convert("L")
-                        elif image.mode not in {"L", "RGB", "CMYK"}:
-                            image = image.convert("RGB")
-                        if scale < 1:
-                            width = max(1, round(image.width * scale))
-                            height = max(1, round(image.height * scale))
-                            image = image.resize(
-                                (width, height),
-                                resample=Image.Resampling.LANCZOS,
-                            )
-                        replace_image(image, quality=quality, optimize=True)
-                        reencoded_images += 1
-
-            for page in writer.pages:
-                page.compress_content_streams()
-            writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
-            buffer = BytesIO()
-            writer.write(buffer)
-            compressed = buffer.getvalue()
-            if target_size is None or len(compressed) <= target_size:
-                break
-            if quality is not None and reencoded_images == 0:
-                break
+                    page.compress_content_streams()
+                writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+                buffer = BytesIO()
+                writer.write(buffer)
+                candidate = buffer.getvalue()
+                if len(candidate) < len(compressed):
+                    compressed = candidate
+                if target_size is None or len(compressed) <= target_size:
+                    break
+                if quality is not None and reencoded_images == 0:
+                    break
 
         if target_size is not None and len(compressed) > target_size:
             # Re-render the whole page so text and vector-heavy PDFs can be

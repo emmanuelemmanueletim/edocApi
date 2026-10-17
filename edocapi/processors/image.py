@@ -75,50 +75,100 @@ class ImageProcessor(BaseProcessor):
         return text.strip()
 
     def compress(self, target_size: int | None = None) -> Path:
-        """Smart image compression with quality iteration toward target size."""
+        """Compress an image, reducing quality and dimensions to meet a byte target.
+
+        When a target is supplied, PNG inputs may be returned as JPEG or WebP if
+        lossless PNG optimization cannot reach it. If the requested target is
+        below the smallest practical encoding, the smallest candidate is returned.
+        """
         fmt = self.path.suffix.lower().lstrip(".")
         if fmt == "jpg":
             fmt = "jpeg"
         out_fmt = fmt if fmt in {"jpeg", "png", "webp"} else "jpeg"
         out = self._temp_path(suffix=f".{out_fmt if out_fmt != 'jpeg' else 'jpg'}", prefix="compressed_")
-
-        img = self._img
-        if out_fmt == "jpeg" and img.mode in ("RGBA", "P", "LA"):
-            img = img.convert("RGB")
-
-        quality = 85
-        if target_size:
-            # Binary search quality
-            low, high = 10, 95
-            best = None
-            for _ in range(8):
-                quality = (low + high) // 2
-                buf = out  # write to same path
-                save_kwargs: dict[str, Any] = {"format": out_fmt.upper()}
-                if out_fmt in {"jpeg", "webp"}:
-                    save_kwargs["quality"] = quality
-                    save_kwargs["optimize"] = True
-                img.save(str(buf), **save_kwargs)
-                size = buf.stat().st_size
-                if size <= target_size:
-                    best = quality
-                    low = quality + 1
-                else:
-                    high = quality - 1
-            quality = best or 40
-        else:
-            save_kwargs = {"format": out_fmt.upper(), "optimize": True}
-            if out_fmt in {"jpeg", "webp"}:
-                save_kwargs["quality"] = quality
-            img.save(str(out), **save_kwargs)
+        source = self._img.copy()
+        if target_size is None:
+            self._save_candidate(source, out_fmt, out, quality=85)
             return out
+        if target_size <= 0:
+            raise ProcessingError("Image compression target must be greater than zero bytes.")
 
-        save_kwargs = {"format": out_fmt.upper(), "optimize": True}
-        if out_fmt in {"jpeg", "webp"}:
-            save_kwargs["quality"] = quality
-        img.save(str(out), **save_kwargs)
-        logger.info("Compressed image %s → %s bytes (q=%s)", self.path.name, out.stat().st_size, quality)
+        # Keep alpha for PNG/WebP. JPEG candidates use RGB on a white background.
+        candidates = [out_fmt]
+        if out_fmt == "png":
+            candidates.extend(["webp", "jpeg"])
+        best_size: int | None = None
+        best_tmp: Path | None = None
+        best_fmt = out_fmt
+
+        # Re-encode at progressively smaller dimensions. A target can be
+        # unattainable at original dimensions regardless of JPEG quality.
+        for candidate_fmt in candidates:
+            img = source
+            if candidate_fmt == "jpeg" and img.mode in ("RGBA", "P", "LA"):
+                rgba = img.convert("RGBA")
+                background = Image.new("RGB", rgba.size, (255, 255, 255))
+                background.paste(rgba, mask=rgba.getchannel("A"))
+                img = background
+            elif candidate_fmt == "jpeg" and img.mode != "RGB":
+                img = img.convert("RGB")
+
+            scale = 1.0
+            while True:
+                width = max(1, round(source.width * scale))
+                height = max(1, round(source.height * scale))
+                resized = img if img.size == (width, height) else img.resize(
+                    (width, height), Image.Resampling.LANCZOS
+                )
+                qualities = [90, 80, 70, 60, 50, 40, 30, 20, 10] if candidate_fmt in {"jpeg", "webp"} else [None]
+                candidate_path = self._temp_path(
+                    suffix=f".{candidate_fmt if candidate_fmt != 'jpeg' else 'jpg'}",
+                    prefix="image_candidate_",
+                )
+                for quality in qualities:
+                    self._save_candidate(resized, candidate_fmt, candidate_path, quality=quality)
+                    size = candidate_path.stat().st_size
+                    if best_size is None or size < best_size:
+                        if best_tmp is not None:
+                            best_tmp.unlink(missing_ok=True)
+                        best_size, best_tmp, best_fmt = size, candidate_path, candidate_fmt
+                        candidate_path = self._temp_path(
+                            suffix=f".{candidate_fmt if candidate_fmt != 'jpeg' else 'jpg'}",
+                            prefix="image_candidate_",
+                        )
+                    if size <= target_size:
+                        candidate_path.unlink(missing_ok=True)
+                        out = self._temp_path(
+                            suffix=f".{candidate_fmt if candidate_fmt != 'jpeg' else 'jpg'}",
+                            prefix="compressed_",
+                        )
+                        self._save_candidate(resized, candidate_fmt, out, quality=quality)
+                        logger.info("Compressed image %s to %s bytes (%s, %sx%s, q=%s)", self.path.name, out.stat().st_size, candidate_fmt, width, height, quality)
+                        if best_tmp is not None:
+                            best_tmp.unlink(missing_ok=True)
+                        return out
+                candidate_path.unlink(missing_ok=True)
+                if width == 1 and height == 1:
+                    break
+                scale *= 0.8
+
+        if best_tmp is None:
+            raise ProcessingError("Unable to encode image for compression.")
+        # Return the smallest candidate even when the requested limit cannot be
+        # reached (for example, a 1x1 image with a target below format overhead).
+        best_tmp.replace(out)
+        logger.info("Compressed image %s to minimum %s bytes (%s; requested %s)", self.path.name, best_size, best_fmt, target_size)
         return out
+
+    @staticmethod
+    def _save_candidate(img: Image.Image, fmt: str, path: Path, *, quality: int | None) -> None:
+        save_fmt = fmt.upper()
+        kwargs: dict[str, Any] = {"format": save_fmt}
+        if fmt == "png":
+            kwargs.update(optimize=True, compress_level=9)
+        elif fmt in {"jpeg", "webp"}:
+            kwargs.update(quality=quality or 10, optimize=(fmt == "jpeg"))
+        img.save(str(path), **kwargs)
 
     def info(self) -> dict[str, Any]:
         base = super().info()

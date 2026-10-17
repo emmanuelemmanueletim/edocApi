@@ -378,7 +378,7 @@ class App:
             compression_mode = getattr(result, "_compression_mode", None)
             if compression_mode:
                 headers["X-Edocapi-Compression-Mode"] = compression_mode
-            if compression_mode == "pdf":
+            if compression_mode in {"pdf", "image"}:
                 target_met = getattr(result, "_compression_target_met", None)
                 if target_met is not None:
                     headers["X-Edocapi-Compression-Target-Met"] = str(target_met).lower()
