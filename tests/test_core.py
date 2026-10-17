@@ -81,6 +81,7 @@ def test_fixture_txt():
 
 
 def test_security_path_traversal():
-    # Creating Document with a non-existent traversal path should fail cleanly
-    with pytest.raises((InvalidDocument, FileNotFoundError, OSError)):
+    # The path may resolve differently across operating systems, but it must
+    # never be accepted as a supported document.
+    with pytest.raises((InvalidDocument, UnsupportedFileType, FileNotFoundError, OSError)):
         Document("/tmp/../../../etc/passwd")
