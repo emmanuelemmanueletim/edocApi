@@ -1,4 +1,4 @@
-"""Core tests for eDocAPI 0.1.3."""
+"""Core tests for eDocAPI 0.2.0."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_version():
-    assert __version__ == "0.1.3"
+    assert __version__ == "0.2.0"
 
 
 def test_safe_filename():

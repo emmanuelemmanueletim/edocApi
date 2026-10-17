@@ -2,9 +2,9 @@
 
 **A Python toolkit for practical document workflows.**
 
-Version **0.1.3** refreshes the release metadata and PyPI project description.
+Version **0.2.0** is the current source release version.
 
-[![PyPI](https://img.shields.io/pypi/v/edocapi?cacheSeconds=300)](https://pypi.org/project/edocapi/)
+[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](RELEASE_NOTES_0.2.0.md)
 [![Python](https://img.shields.io/pypi/pyversions/edocapi)](https://pypi.org/project/edocapi/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -14,7 +14,7 @@ pip install edocapi
 
 ---
 
-## Highlights in 0.1.3
+## Highlights in 0.2.0
 
 - **One document toolkit** – convert, extract, recognize, compress, and merge documents through a consistent Python interface.
 - **Structured recognition** – optional PaddleOCR adds page layout, table, and formula recognition.
@@ -22,13 +22,13 @@ pip install edocapi
 - **Readable document output** – DOCX-to-PDF preserves headings, page breaks, table widths, and repeating table headers.
 - **Tools for developers** – use the Python library, command-line tools, ASGI application, and interactive dashboard.
 
-See [RELEASE_NOTES_0.1.3.md](RELEASE_NOTES_0.1.3.md) for the full changelog.
+See [RELEASE_NOTES_0.2.0.md](RELEASE_NOTES_0.2.0.md) for the full changelog.
 
 ## Why I’m building eDocAPI
 
 I’m building eDocAPI so Python developers can take a document from upload to useful text or a converted file through one clear workflow. I focus on the details that matter in real use: preserving page structure, handling uploads carefully, and making OCR easier to configure. I’ll keep refining these parts and add capabilities as practical use shows what should come next.
 
-### Document workflow details in v0.1.3
+### Document workflow details in v0.2.0
 
 - DOCX-to-PDF uses ReportLab's paginated layout engine, included in the core dependencies.
 - DOCX conversion preserves centered cover titles, heading hierarchy, paragraph order, source table widths, and explicit page breaks.

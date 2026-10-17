@@ -1,4 +1,4 @@
-# eDocAPI 0.1.2
+# eDocAPI 0.2.0
 
 **Release date:** 2026-10-17  
 **Focus:** reliability, security, and release quality
