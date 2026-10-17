@@ -55,6 +55,10 @@ class FileResponse:
         if media_type is None:
             media_type, _ = mimetypes.guess_type(str(self.path))
             media_type = media_type or "application/octet-stream"
+        if media_type.lower().split(";", 1)[0].strip() in {
+            "text/html", "application/xhtml+xml", "image/svg+xml"
+        }:
+            media_type = "application/octet-stream"
         self.media_type = media_type
         self.headers.setdefault("content-type", media_type)
         # Force download
@@ -64,6 +68,7 @@ class FileResponse:
         )
 
     def body(self) -> bytes:
+        """Return file bytes for compatibility with simple response consumers."""
         return self.path.read_bytes()
 
 
@@ -81,9 +86,6 @@ def make_error_response(
     else:
         payload = {
             "error": exc.__class__.__name__,
-            "message": str(exc) if debug else "An internal error occurred.",
+            "message": "An internal error occurred.",
         }
-    if debug and not isinstance(exc, EdocAPIError):
-        import traceback
-        payload["traceback"] = traceback.format_exc()
     return JSONResponse(payload, status_code=status_code)

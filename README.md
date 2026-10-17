@@ -2,7 +2,7 @@
 
 **A Python toolkit for practical document workflows.**
 
-Version **0.1.1** brings document conversion, extraction, OCR, and an API into one focused toolkit.
+Version **0.1.2** focuses on predictable failures, safer uploads, and release reliability.
 
 [![PyPI](https://img.shields.io/pypi/v/edocapi)](https://pypi.org/project/edocapi/)
 [![Python](https://img.shields.io/pypi/pyversions/edocapi)](https://pypi.org/project/edocapi/)
@@ -14,7 +14,7 @@ pip install edocapi
 
 ---
 
-## Highlights in 0.1.1
+## Highlights in 0.1.2
 
 - **One document toolkit** – convert, extract, recognize, compress, and merge documents through a consistent Python interface.
 - **Structured recognition** – optional PaddleOCR adds page layout, table, and formula recognition.
@@ -22,13 +22,13 @@ pip install edocapi
 - **Readable document output** – DOCX-to-PDF preserves headings, page breaks, table widths, and repeating table headers.
 - **Tools for developers** – use the Python library, command-line tools, ASGI application, and interactive dashboard.
 
-See [RELEASE_NOTES_0.1.1.md](RELEASE_NOTES_0.1.1.md) for the full changelog.
+See [RELEASE_NOTES_0.1.2.md](RELEASE_NOTES_0.1.2.md) for the full changelog.
 
 ## Why I’m building eDocAPI
 
 I’m building eDocAPI so Python developers can take a document from upload to useful text or a converted file through one clear workflow. I focus on the details that matter in real use: preserving page structure, handling uploads carefully, and making OCR easier to configure. I’ll keep refining these parts and add capabilities as practical use shows what should come next.
 
-### Document workflow details in v0.1.1
+### Document workflow details in v0.1.2
 
 - DOCX-to-PDF uses ReportLab's paginated layout engine, included in the core dependencies.
 - DOCX conversion preserves centered cover titles, heading hierarchy, paragraph order, source table widths, and explicit page breaks.
@@ -37,6 +37,9 @@ I’m building eDocAPI so Python developers can take a document from upload to u
 - The interactive dashboard gives developers a feature summary and a single `/health` endpoint card for both GET and POST.
 - Dashboard “Try it” responses, errors, and file previews appear in a modal without leaving the dashboard.
 - ReportLab provides paginated DOCX-to-PDF output; the optional `html` extra adds HTML/Markdown PDF rendering.
+- Missing, empty, encrypted, corrupt, and unsupported documents return stable framework errors; unexpected server errors do not expose exception text.
+- HTML/Markdown/DOCX PDF rendering blocks local and remote resource access.
+- Multipart uploads stream to managed temporary files under a separate total-request limit.
 
 ---
 
@@ -102,6 +105,10 @@ uvicorn main:app --reload
 
 Open http://127.0.0.1:8000 for the interactive developer dashboard.
 
+Supported Python versions are 3.10–3.13. Optional renderers and OCR engines are
+installed through the documented extras; missing extras produce framework errors
+or documented basic-renderer fallbacks.
+
 ### Upload limits
 
 `App` accepts files up to **50MB** by default. Set `max_file_size` when creating
@@ -114,25 +121,83 @@ from edocapi import App
 app = App(max_file_size="10MB")
 ```
 
-The framework enforces 50MB as its highest permitted per-file limit. Requests
-larger than the configured limit receive a `413 Request Entity Too Large` response.
+The framework enforces 50MB as its highest permitted per-file limit. The total
+request body has an independent 100MB default limit; configure it with
+`max_request_size` when multipart overhead or multiple uploads require a different
+budget. Oversized file and request bodies receive `413`. Missing uploads and
+invalid documents receive `400`; unsupported types and signature mismatches
+receive `415`. Unexpected server errors return a generic `500` response while
+diagnostic details stay in server logs.
+
+### Rate limits
+
+Set a default rolling-window request limit per client, then add a stricter limit
+to expensive routes. The built-in `/health` endpoint is exempt.
+
+```python
+from edocapi import App
+
+app = App()
+app.limits(100, per="minute")
+
+@app.post("/convert", limit="10/minute")
+def convert(file):
+    ...
+
+@app.post("/ocr", limit="3/minute")
+def ocr(file):
+    ...
+```
+
+The global limit remains an upper bound when a route limit is set. Requests over
+the limit receive `429` and a `Retry-After` header. Client identity comes from
+the ASGI connection IP; forwarded headers are not trusted. Limits are held in
+the application process and are not shared between worker processes or servers.
+Use a shared rate-limit store at the deployment layer when a distributed limit
+across workers is required.
 
 ---
 
 ## Supported formats
 
-| Format     | to_pdf | extract_text | OCR | compress | merge |
-|------------|--------|--------------|-----|----------|-------|
-| PDF        | ✓      | ✓            | ✓*  | ✓        | ✓     |
-| DOCX       | ✓      | ✓            | –   | –        | –     |
-| HTML       | ✓      | ✓            | –   | –        | –     |
-| Markdown   | ✓      | ✓            | –   | –        | –     |
-| TXT        | ✓      | ✓            | –   | –        | –     |
-| JPEG/PNG/WebP | ✓   | ✓*           | ✓*  | ✓        | –     |
+This matrix lists operations implemented for each input type. It assumes a valid,
+non-empty document and the optional packages or system tools described below.
 
-\* Requires optional extras: `pip install edocapi[ml]` (and `edocapi[pdf-images]` for PDF page rendering).
+| Input format | `to_pdf()` | `extract_text()` | `ocr()` | `compress()` | `merge()` | `to_images()` |
+|---|---:|---:|---:|---:|---:|---:|
+| PDF | Yes | Yes | Yes¹ | Yes | Yes² | Yes³ |
+| DOCX | Yes | Yes | No | No | No | No |
+| HTML / HTM | Yes⁴ | Yes | No | No | No | No |
+| Markdown / MD | Yes⁴ | Yes⁷ | No | No | No | No |
+| TXT | Yes | Yes | No | No | No | No |
+| JPEG / JPG / PNG / WebP | Yes | Yes⁵ | Yes⁵ | Yes⁶ | No | No |
 
----
+1. PDF `extract_text()` reads embedded text and needs no OCR extra. `ocr()` also
+   returns embedded text for digital pages. Scanned pages using Tesseract require
+   `edocapi[ml]` and the separately installed Tesseract executable; pages that
+   need rendering may also require `edocapi[pdf-images]` and Poppler. The Paddle
+   engine instead requires `edocapi[structured-ocr]`.
+2. `merge()` accepts PDF inputs only.
+3. PDF page rendering is provided by `to_images()` and requires
+   `edocapi[pdf-images]` plus the Poppler system utility used by `pdf2image`.
+4. HTML and Markdown can be converted with the built-in basic PDF renderer.
+   Installing `edocapi[html]` enables WeasyPrint rendering. Linked local and
+   remote resources are blocked in that renderer.
+5. For images, `extract_text()` delegates to Tesseract OCR and requires
+   `edocapi[ml]` plus the separately installed Tesseract executable;
+   `Document.ocr(engine="paddle")` uses the optional
+   `edocapi[structured-ocr]` extra instead.
+6. Image compression is supported. When a target size is set, PNG compression
+   may produce WebP or JPEG output to meet the target; check the returned
+   document's `type` or file suffix.
+7. Markdown `extract_text()` returns the original Markdown source, including
+   formatting markers; it does not convert Markdown syntax to plain text.
+
+The `Document.ocr()` library method is available independently of the ASGI
+route setting. The ASGI `/ocr` route is disabled by default for applications
+created with `App()`; enable it with `App(enable_ocr=True)`. The included
+`main.py` example enables the route. Scanned images and PDF pages still require
+the OCR dependencies described above.
 
 ## Optional extras
 
@@ -204,8 +269,8 @@ borders.
 
 - Filenames are sanitized (basename only, dangerous characters stripped).
 - Magic-byte verification prevents extension spoofing.
-- A 50MB per-file ceiling, with configurable smaller file-size and file-count limits.
-- Streaming request reads enforce the configured request-size budget; multipart fields and uploads have separate count and size limits.
+- A 50MB per-file ceiling, with configurable file-size and file-count limits.
+- Multipart uploads stream to temporary files. A separate `max_request_size` limit defaults to 100MB and caps the full HTTP request, including multipart overhead.
 - Uploads use generated, collision-resistant temporary names, and temporary cleanup is confined to registered paths under the storage root.
 - Dashboard route metadata is HTML-escaped, route templates are validated, response filenames are encoded safely, and responses include baseline browser security headers.
 - Temporary files are isolated and cleaned up automatically.

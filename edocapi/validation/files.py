@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import logging
+import zipfile
 from pathlib import Path
-from typing import BinaryIO
 
 from edocapi.exceptions import (
     FileTooLarge,
     InvalidDocument,
     SecurityError,
     UnsupportedFileType,
-    ValidationError,
 )
 from edocapi.config import MAX_FILE_SIZE_BYTES
 from edocapi.storage.temporary import safe_filename
@@ -34,8 +33,8 @@ SUPPORTED_EXTENSIONS = {
 
 # Magic byte signatures (first few bytes)
 MAGIC_SIGNATURES: dict[bytes, str] = {
-    b"%PDF": "pdf",
-    b"PK\x03\x04": "zip",  # DOCX is a ZIP; further checks needed
+    b"%PDF-": "pdf",
+    b"PK\x03\x04": "zip",
     b"\xff\xd8\xff": "jpeg",
     b"\x89PNG\r\n\x1a\n": "png",
     b"RIFF": "webp",  # needs further check for WEBP
@@ -61,18 +60,20 @@ def detect_type_from_bytes(data: bytes) -> str | None:
                 return None
             return kind
 
-    # Text-based heuristics
+    # Text formats have no fixed magic signature. Require valid UTF-8 and
+    # reject binary control characters rather than trusting the extension.
     try:
-        sample = data[:2048].decode("utf-8", errors="ignore").strip().lower()
-    except Exception:
+        decoded = data[:8192].decode("utf-8")
+    except UnicodeDecodeError:
         return None
-
-    if sample.startswith("<!doctype html") or sample.startswith("<html") or sample.startswith("<head"):
+    if not decoded or any(ord(char) < 32 and char not in "\t\r\n\f" for char in decoded):
+        return None
+    sample = decoded.lstrip("\ufeff \t\r\n").lower()
+    if sample.startswith(("<!doctype html", "<html", "<head", "<body")):
         return "html"
-    if sample.startswith("# ") or sample.startswith("---\n") or sample.startswith("---\r\n"):
+    if sample.startswith(("# ", "---\n", "---\r\n")):
         return "markdown"
-    # Mostly printable → treat as plain text
-    if all(32 <= b < 127 or b in (9, 10, 13) for b in data[:512]):
+    if all(char.isprintable() or char in "\t\r\n\f" for char in decoded):
         return "txt"
     return None
 
@@ -121,6 +122,7 @@ def validate_file(
     *,
     max_size: int = MAX_FILE_SIZE_BYTES,
     strict_magic: bool = True,
+    allowed_extensions: set[str] | None = None,
 ) -> str:
     """Validate a file on disk and return its normalized type string.
 
@@ -132,14 +134,22 @@ def validate_file(
     """
     path = Path(path)
     if not path.is_file():
-        raise InvalidDocument(f"File does not exist or is not a regular file: {path}")
+        raise InvalidDocument("File does not exist or is not a regular file.")
 
     size = path.stat().st_size
     if size == 0:
         raise InvalidDocument("File is empty.")
     validate_size(size, max_size)
 
-    ext = validate_extension(path.name)
+    ext = Path(safe_filename(path.name)).suffix.lower()
+    permitted = SUPPORTED_EXTENSIONS if allowed_extensions is None else {
+        item.lower() if item.startswith(".") else f".{item.lower()}"
+        for item in allowed_extensions
+    }
+    if ext not in permitted or ext not in SUPPORTED_EXTENSIONS:
+        raise UnsupportedFileType(
+            f"File extension '{ext}' is not supported or allowed.", extension=ext
+        )
     declared = _extension_to_type(ext)
 
     if strict_magic:
@@ -147,22 +157,31 @@ def validate_file(
             head = f.read(8192)
         detected = detect_type_from_bytes(head)
 
-        # Allow text formats that may not have strong magic
+        # Text files have no fixed signature; validate their content as text.
         text_types = {"html", "markdown", "txt"}
         if detected is None and declared in text_types:
-            detected = declared
+            raise SecurityError("File content is not valid text for its declared type.")
 
         if detected is None:
             raise SecurityError(
-                f"Could not determine file type from content for '{path.name}'. "
-                "Possible unsupported or malicious content."
+                "Could not determine file type from content; the file may be unsupported or malformed."
             )
 
+        if declared == "docx":
+            try:
+                with zipfile.ZipFile(path) as archive:
+                    names = set(archive.namelist())
+                    if "[Content_Types].xml" not in names or "word/document.xml" not in names:
+                        raise SecurityError("DOCX package is missing required document components.")
+                    if archive.testzip() is not None:
+                        raise SecurityError("DOCX package contains a corrupted component.")
+            except SecurityError:
+                raise
+            except Exception as exc:
+                raise SecurityError("DOCX content is not a valid Office document package.") from exc
+
         # Mismatch is a security risk (e.g. .pdf that is actually executable)
-        if detected != declared and not (
-            (declared == "jpeg" and detected == "jpeg")
-            or (declared in text_types and detected in text_types)
-        ):
+        if detected != declared and not (declared == "jpeg" and detected == "jpeg"):
             # Special case: .docx is detected as "docx", declared as "docx"
             if not (declared == "docx" and detected == "docx"):
                 logger.warning(
@@ -170,8 +189,7 @@ def validate_file(
                     path.name, declared, detected,
                 )
                 raise SecurityError(
-                    f"File content does not match extension. "
-                    f"Extension indicates '{declared}', content indicates '{detected}'."
+                    "File content does not match its declared extension."
                 )
 
         return detected

@@ -31,13 +31,17 @@ class MarkdownProcessor(BaseProcessor):
         html = self.to_html()
         try:
             from weasyprint import HTML
-            out = self._temp_path(suffix=".pdf", prefix="md_")
-            HTML(string=html).write_pdf(str(out))
-            return out
-        except Exception as exc:
-            logger.info("WeasyPrint unavailable (%s) - falling back to simple PDF", exc)
+        except ImportError:
             from edocapi.processors.simple_pdf import text_to_pdf
             return text_to_pdf(self.to_text(), temp_storage=self.temp_storage)
+        from edocapi.processors.safe_fetch import blocked_url_fetcher
+        out = self._temp_path(suffix=".pdf", prefix="md_")
+        try:
+            HTML(string=html, url_fetcher=blocked_url_fetcher).write_pdf(str(out))
+            return out
+        except Exception as exc:
+            self._discard_temp(out)
+            raise ConversionError("Markdown to PDF conversion failed.") from exc
 
     def info(self) -> dict[str, Any]:
         base = super().info()

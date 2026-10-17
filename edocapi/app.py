@@ -6,11 +6,15 @@ import asyncio
 import inspect
 import logging
 import re
+import mimetypes
 import sys
+import threading
+import time
+from collections import OrderedDict, deque
 from typing import Any, Callable, Sequence
 
 from edocapi.config import Config
-from edocapi.exceptions import EdocAPIError, FileTooLarge
+from edocapi.exceptions import EdocAPIError, FileTooLarge, InvalidDocument, MissingUpload, SecurityError, UnsupportedFileType, ValidationError
 from edocapi.http.multipart import parse_multipart
 from edocapi.http.request import Request
 from edocapi.responses import FileResponse, JSONResponse, make_error_response
@@ -22,7 +26,7 @@ logger = logging.getLogger("edocapi")
 class Route:
     """Simple route descriptor."""
 
-    __slots__ = ("path", "methods", "endpoint", "name", "pattern")
+    __slots__ = ("path", "methods", "endpoint", "name", "pattern", "limit")
 
     def __init__(
         self,
@@ -30,6 +34,7 @@ class Route:
         endpoint: Callable,
         methods: Sequence[str],
         name: str | None = None,
+        limit: tuple[int, float] | None = None,
     ) -> None:
         if (
             not isinstance(path, str)
@@ -52,6 +57,7 @@ class Route:
             raise ValueError("Routes require valid HTTP method names.")
         self.endpoint = endpoint
         self.name = name or endpoint.__name__
+        self.limit = limit
         pattern = ""
         cursor = 0
         for placeholder in placeholders:
@@ -96,6 +102,9 @@ class App:
             **kwargs,
         )
         self._routes: list[Route] = []
+        self._global_limit: tuple[int, float] | None = None
+        self._rate_buckets: OrderedDict[tuple[str, str], deque[float]] = OrderedDict()
+        self._rate_lock = threading.Lock()
         self._temp_storage = TemporaryStorage(self.config.temp_dir)
 
         # Expose a built-in liveness endpoint for deployments that run the
@@ -121,38 +130,82 @@ class App:
         endpoint: Callable,
         methods: Sequence[str],
         name: str | None = None,
+        limit: str | tuple[int, float] | None = None,
     ) -> None:
-        self._routes.append(Route(path, endpoint, methods, name=name))
+        self._routes.append(Route(path, endpoint, methods, name=name, limit=self._parse_route_limit(limit)))
 
-    def get(self, path: str) -> Callable:
+    @staticmethod
+    def _parse_limit(value: str | tuple[int, float]) -> tuple[int, float]:
+        if isinstance(value, tuple) and len(value) == 2:
+            count, seconds = value
+        elif isinstance(value, str):
+            match = re.fullmatch(r"\s*(\d+)\s*/\s*(second|minute|hour|day)s?\s*", value, re.IGNORECASE)
+            if not match:
+                raise ValueError("Rate limits must look like '10/minute', '20/second', '300/hour', or '1000/day'.")
+            count = int(match.group(1))
+            seconds = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}[match.group(2).lower().rstrip("s")]
+        else:
+            raise ValueError("Rate limit must be a '<count>/<period>' string or (count, seconds) tuple.")
+        if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+            raise ValueError("Rate limit request count must be a positive integer.")
+        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds <= 0:
+            raise ValueError("Rate limit period must be a positive number of seconds.")
+        return count, float(seconds)
+
+    @classmethod
+    def _parse_route_limit(cls, limit: str | tuple[int, float] | None) -> tuple[int, float] | None:
+        return cls._parse_limit(limit) if limit is not None else None
+
+    @staticmethod
+    def _period_name(seconds: float) -> str:
+        for unit, duration in (("day", 86400), ("hour", 3600), ("minute", 60), ("second", 1)):
+            if seconds == duration:
+                return unit
+        return f"{seconds:g}s"
+
+    def limits(self, requests: int, *, per: str = "minute") -> "App":
+        """Set the default per-client request limit for all routes except health."""
+        if isinstance(requests, bool) or not isinstance(requests, int) or requests <= 0:
+            raise ValueError("Rate limit request count must be a positive integer.")
+        period = self._parse_limit(f"{requests}/{per}")
+        self._global_limit = period
+        return self
+
+    def get(self, path: str, *, limit: str | tuple[int, float] | None = None) -> Callable:
         def decorator(func: Callable) -> Callable:
-            self._add_route(path, func, ["GET"])
+            self._add_route(path, func, ["GET"], limit=limit)
             return func
         return decorator
 
-    def post(self, path: str) -> Callable:
+    def post(self, path: str, *, limit: str | tuple[int, float] | None = None) -> Callable:
         def decorator(func: Callable) -> Callable:
-            self._add_route(path, func, ["POST"])
+            self._add_route(path, func, ["POST"], limit=limit)
             return func
         return decorator
 
-    def put(self, path: str) -> Callable:
+    def put(self, path: str, *, limit: str | tuple[int, float] | None = None) -> Callable:
         def decorator(func: Callable) -> Callable:
-            self._add_route(path, func, ["PUT"])
+            self._add_route(path, func, ["PUT"], limit=limit)
             return func
         return decorator
 
-    def delete(self, path: str) -> Callable:
+    def delete(self, path: str, *, limit: str | tuple[int, float] | None = None) -> Callable:
         def decorator(func: Callable) -> Callable:
-            self._add_route(path, func, ["DELETE"])
+            self._add_route(path, func, ["DELETE"], limit=limit)
             return func
         return decorator
 
-    def route(self, path: str, methods: Sequence[str] | None = None) -> Callable:
+    def route(
+        self,
+        path: str,
+        methods: Sequence[str] | None = None,
+        *,
+        limit: str | tuple[int, float] | None = None,
+    ) -> Callable:
         methods = methods or ["GET"]
 
         def decorator(func: Callable) -> Callable:
-            self._add_route(path, func, methods)
+            self._add_route(path, func, methods, limit=limit)
             return func
         return decorator
 
@@ -227,6 +280,13 @@ class App:
                 "methods": sorted(route.methods),
                 "name": route.name,
                 "description": inspect.getdoc(route.endpoint) or "",
+                "rate_limit": (
+                    f"{route.limit[0]}/{self._period_name(route.limit[1])}"
+                    if route.limit is not None
+                    else f"{self._global_limit[0]}/{self._period_name(self._global_limit[1])}"
+                    if self._global_limit is not None and route.path.rstrip("/").lower() != "/health"
+                    else None
+                ),
                 "parameters": params,
             })
         return render_dashboard(
@@ -255,9 +315,21 @@ class App:
         request = Request(
             scope,
             receive,
-            max_body_size=self.config.max_file_size * self.config.max_files,
+            max_body_size=self.config.max_request_size,
         )
-        response = await self._handle(request)
+        response: Any
+        try:
+            response = await self._handle(request)
+        except FileTooLarge as exc:
+            response = make_error_response(exc, status_code=413)
+        except EdocAPIError as exc:
+            status = 415 if isinstance(exc, (UnsupportedFileType, SecurityError)) else 400
+            response = make_error_response(exc, status_code=status)
+        except Exception:
+            logger.exception("Unhandled ASGI request failure")
+            response = make_error_response(RuntimeError(), status_code=500)
+        for header, value in getattr(request, "_rate_headers", {}).items():
+            response.headers[header] = value
         await self._send_response(response, send)
 
     async def _handle(self, request: Request) -> Any:
@@ -277,16 +349,77 @@ class App:
                 status_code=404,
             )
 
-        request.path_params = path_params
-        return await self._dispatch(matched.endpoint, request)
+        if matched.path.rstrip("/").lower() != "/health":
+            limited = self._rate_limit_response(matched, request)
+            if limited is not None:
+                return limited
 
-    async def _dispatch(self, endpoint: Callable, request: Request) -> Any:
+        request.path_params = path_params
+        return await self._dispatch(matched.endpoint, request, route_path=matched.path)
+
+    def _rate_limit_response(self, route: Route, request: Request) -> JSONResponse | None:
+        policies: list[tuple[str, int, float]] = []
+        if self._global_limit is not None:
+            policies.append(("*", self._global_limit[0], self._global_limit[1]))
+        if route.limit is not None:
+            policies.append((f"{','.join(sorted(route.methods))}:{route.path}", route.limit[0], route.limit[1]))
+        if not policies:
+            return None
+        client = request.scope.get("client")
+        identity = str(client[0]) if isinstance(client, (tuple, list)) and client else "unknown"
+        now = time.monotonic()
+        with self._rate_lock:
+            active: list[tuple[tuple[str, str], deque[float], int, float]] = []
+            for policy_key, count, period in policies:
+                key = (identity, policy_key)
+                bucket = self._rate_buckets.setdefault(key, deque())
+                self._rate_buckets.move_to_end(key)
+                cutoff = now - period
+                while bucket and bucket[0] <= cutoff:
+                    bucket.popleft()
+                active.append((key, bucket, count, period))
+            exceeded = next(
+                (item for item in active if len(item[1]) >= item[2]),
+                None,
+            )
+            if exceeded is not None:
+                _, bucket, count, period = exceeded
+                retry_after = max(1, int(bucket[0] + period - now + 0.999))
+                return JSONResponse(
+                    {"error": "RateLimitExceeded", "message": "Too many requests. Please retry later."},
+                    status_code=429,
+                    headers={
+                        "retry-after": str(retry_after),
+                        "x-ratelimit-limit": str(count),
+                        "x-ratelimit-remaining": "0",
+                    },
+                )
+            for _, bucket, _, _ in active:
+                bucket.append(now)
+            most_restrictive = min(active, key=lambda item: (item[2] - len(item[1])) / item[2])
+            _, bucket, count, _ = most_restrictive
+            remaining = count - len(bucket)
+            request._rate_headers = {
+                "x-ratelimit-limit": str(count),
+                "x-ratelimit-remaining": str(remaining),
+            }
+            while len(self._rate_buckets) > 8192:
+                self._rate_buckets.popitem(last=False)
+        return None
+
+    async def _dispatch(self, endpoint: Callable, request: Request, *, route_path: str = "") -> Any:
         from edocapi.document import Document
 
         uploads: list = []
         try:
             sig = inspect.signature(endpoint)
             kwargs: dict[str, Any] = {}
+            is_ocr_route = (
+                route_path.rstrip("/").lower() == "/ocr"
+                or (endpoint.__name__ == "ocr" and "engine" in sig.parameters and "lang" in sig.parameters)
+            )
+            if is_ocr_route and not self.config.enable_ocr:
+                raise EdocAPIError("OCR is disabled for this application. Enable it with enable_ocr=True.")
 
             # Parse multipart when needed
             form_fields: dict[str, str] = {}
@@ -294,27 +427,33 @@ class App:
             if "multipart/form-data" in content_type.lower() and any(
                 p in sig.parameters for p in ("file", "files")
             ):
-                body_limit = self.config.max_file_size * self.config.max_files
-                body = await request.body(max_size=body_limit)
                 uploads, form_fields = await parse_multipart(
-                    body,
+                    request.iter_body(),
                     content_type,
                     max_size=self.config.max_file_size,
                     max_files=self.config.max_files,
                     temp_storage=self._temp_storage,
+                    max_request_size=self.config.max_request_size,
+                    content_length=(
+                        int(request.headers["content-length"])
+                        if request.headers.get("content-length", "").isdigit()
+                        else None
+                    ),
                 )
                 request._form = form_fields
+                for uploaded in uploads:
+                    self._validate_upload(uploaded)
 
             for name, param in sig.parameters.items():
                 if name == "request":
                     kwargs["request"] = request
                 elif name == "file":
                     if not uploads:
-                        raise EdocAPIError("No file uploaded.")
+                        raise MissingUpload("No file uploaded; provide a file field.")
                     kwargs["file"] = uploads[0]
                 elif name == "files":
                     if not uploads:
-                        raise EdocAPIError("No files uploaded.")
+                        raise MissingUpload("No files uploaded; provide one or more files fields.")
                     kwargs["files"] = uploads
                 elif name in request.path_params:
                     kwargs[name] = request.path_params[name]
@@ -322,10 +461,12 @@ class App:
                     kwargs[name] = form_fields[name]
                 elif name in request.query_params:
                     kwargs[name] = request.query_params[name]
+                elif name == "lang" and is_ocr_route:
+                    kwargs[name] = self.config.ocr_lang
                 elif param.default is not inspect.Parameter.empty:
                     continue
                 else:
-                    continue
+                    raise ValidationError(f"Required parameter '{name}' was not provided.")
 
             if inspect.iscoroutinefunction(endpoint):
                 result = await endpoint(**kwargs)
@@ -338,16 +479,21 @@ class App:
             response = self._make_response(result)
 
         except EdocAPIError as exc:
-            status = 413 if isinstance(exc, FileTooLarge) else 400
+            status = 413 if isinstance(exc, FileTooLarge) else 415 if isinstance(exc, (UnsupportedFileType, SecurityError)) else 400
             logger.warning("eDocAPI error: %s", exc)
-            response = make_error_response(exc, status_code=status, debug=self.config.debug)
+            response = make_error_response(exc, status_code=status)
         except Exception as exc:
             logger.exception("Unhandled error in endpoint")
-            response = make_error_response(exc, status_code=500, debug=self.config.debug)
+            response = make_error_response(exc, status_code=500)
 
         if uploads:
             previous_background = getattr(response, "background", None)
-            upload_cleanup = [self._cleanup_callback(path, self._temp_storage) for path in uploads]
+            response_path = response.path if isinstance(response, FileResponse) else None
+            upload_cleanup = [
+                self._cleanup_callback(path, self._temp_storage)
+                for path in uploads
+                if path != response_path
+            ]
 
             def cleanup_request_files() -> None:
                 try:
@@ -361,6 +507,26 @@ class App:
             # supports endpoints that return an uploaded file directly.
             response.background = cleanup_request_files
         return response
+
+    def _validate_upload(self, path: Any) -> None:
+        extension = path.suffix.lower()
+        allowed = {
+            ext.lower() if ext.startswith(".") else f".{ext.lower()}"
+            for ext in self.config.allowed_extensions
+        }
+        if extension not in allowed:
+            raise UnsupportedFileType(
+                f"File extension '{extension or '(none)'}' is not allowed.",
+                extension=extension,
+            )
+        from edocapi.document import Document
+        Document(
+            path,
+            max_size=self.config.max_file_size,
+            strict_magic=self.config.strict_magic_check,
+            allowed_extensions=self.config.allowed_extensions,
+            temp_storage=self._temp_storage,
+        )
 
     def _make_response(self, result: Any) -> Any:
         from edocapi.document import Document
@@ -444,44 +610,51 @@ class App:
         return _cb
 
     async def _send_response(self, response: Any, send: Any) -> None:
-        body = response.body() if hasattr(response, "body") else b""
-        response_headers = {
-            "x-content-type-options": "nosniff",
-            "referrer-policy": "no-referrer",
-            "x-frame-options": "DENY",
-        }
-        for key, value in getattr(response, "headers", {}).items():
-            response_headers[str(key).lower()] = value
-        headers = []
-        for key, value in response_headers.items():
-            key_text, value_text = str(key), str(value)
-            if (
-                not re.fullmatch(r"[!#$%&'*+.^_`|~0-9a-z-]+", key_text)
-                or any((ord(char) < 0x20 and char != "\t") or ord(char) == 0x7F for char in value_text)
-            ):
-                logger.warning("Skipping invalid HTTP response header: %s", key_text[:80])
-                continue
-            try:
-                headers.append((key_text.encode("ascii"), value_text.encode("latin-1")))
-            except UnicodeEncodeError:
-                logger.warning("Skipping non-Latin-1 HTTP response header: %s", key_text[:80])
-        headers = [(key, value) for key, value in headers if key != b"content-length"]
-        headers.append((b"content-length", str(len(body)).encode("latin-1")))
-
-        await send({
-            "type": "http.response.start",
-            "status": getattr(response, "status_code", 200),
-            "headers": headers,
-        })
-        await send({
-            "type": "http.response.body",
-            "body": body,
-        })
-
-        # Run background cleanup
-        bg = getattr(response, "background", None)
-        if callable(bg):
-            try:
-                bg()
-            except Exception:
-                logger.exception("Background cleanup failed")
+        is_file = isinstance(response, FileResponse)
+        try:
+            body = b"" if is_file else response.body() if hasattr(response, "body") else b""
+            response_headers = {
+                "x-content-type-options": "nosniff",
+                "referrer-policy": "no-referrer",
+                "x-frame-options": "DENY",
+            }
+            for key, value in getattr(response, "headers", {}).items():
+                response_headers[str(key).lower()] = value
+            headers = []
+            for key, value in response_headers.items():
+                key_text, value_text = str(key), str(value)
+                if (
+                    not re.fullmatch(r"[!#$%&'*+.^_`|~0-9a-z-]+", key_text)
+                    or any((ord(char) < 0x20 and char != "\t") or ord(char) == 0x7F for char in value_text)
+                ):
+                    logger.warning("Skipping invalid HTTP response header: %s", key_text[:80])
+                    continue
+                try:
+                    headers.append((key_text.encode("ascii"), value_text.encode("latin-1")))
+                except UnicodeEncodeError:
+                    logger.warning("Skipping non-Latin-1 HTTP response header: %s", key_text[:80])
+            headers = [(key, value) for key, value in headers if key != b"content-length"]
+            content_length = response.path.stat().st_size if is_file else len(body)
+            headers.append((b"content-length", str(content_length).encode("latin-1")))
+            await send({
+                "type": "http.response.start",
+                "status": getattr(response, "status_code", 200),
+                "headers": headers,
+            })
+            if is_file:
+                with response.path.open("rb") as source:
+                    while True:
+                        chunk = source.read(64 * 1024)
+                        if not chunk:
+                            break
+                        await send({"type": "http.response.body", "body": chunk, "more_body": True})
+                await send({"type": "http.response.body", "body": b"", "more_body": False})
+            else:
+                await send({"type": "http.response.body", "body": body})
+        finally:
+            bg = getattr(response, "background", None)
+            if callable(bg):
+                try:
+                    bg()
+                except Exception:
+                    logger.exception("Background cleanup failed")

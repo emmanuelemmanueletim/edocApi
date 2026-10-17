@@ -31,6 +31,12 @@ class BaseProcessor(ABC):
         os.close(fd)
         return Path(name)
 
+    def _discard_temp(self, path: Path) -> None:
+        if self.temp_storage is not None:
+            self.temp_storage.discard(path)
+        else:
+            path.unlink(missing_ok=True)
+
     @abstractmethod
     def to_pdf(self) -> Path:
         ...

@@ -1,4 +1,4 @@
-# Publishing eDocAPI 0.1.1 to PyPI
+# Publishing eDocAPI 0.1.2 to PyPI
 
 ## 1. Install build tools
 
@@ -13,9 +13,7 @@ cd /path/to/edocapi
 python -m build
 ```
 
-This produces:
-- `dist/edocapi-0.1.1.tar.gz`
-- `dist/edocapi-0.1.1-py3-none-any.whl`
+This produces the 0.1.2 source distribution and wheel.
 
 ## 3. Check the package
 
@@ -32,7 +30,7 @@ twine upload --repository testpypi dist/*
 Then test:
 
 ```bash
-pip install -i https://test.pypi.org/simple/ edocapi==0.1.1
+pip install -i https://test.pypi.org/simple/ edocapi==0.1.2
 ```
 
 ## 5. Upload to production PyPI
@@ -49,6 +47,9 @@ pip install edocapi
 
 ## Notes
 
-- Make sure `LICENSE`, `README.md`, and `RELEASE_NOTES_0.1.1.md` are present.
+- Make sure `LICENSE`, `README.md`, and `RELEASE_NOTES_0.1.2.md` are present.
 - Version is defined in `pyproject.toml` and `edocapi/__init__.py`.
-- Check that package capabilities, installation extras, and README guidance match before publishing.
+- Run `python -m pytest`, `python -m build`, and `python -m twine check dist/*` before publishing.
+- Verify optional extras with `python -m pip install -e ".[html,pdf-images,ml,structured-ocr,server]"` on a supported Python version.
+- Confirm release notes, README, supported Python versions, and installation instructions agree.
+- Push the release commit and wait for the Ubuntu/Windows CI matrix and distribution checks to pass before creating the `v0.1.2` GitHub release or uploading to PyPI.

@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "edocapi"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Python toolkit for document conversion, extraction, OCR, and secure workflows, with a library, CLI, and ASGI API."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -31,7 +31,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -101,7 +100,7 @@ Homepage = "https://github.com/emmanuelemmanueletim/edocApi"
 Documentation = "https://github.com/emmanuelemmanueletim/edocApi#readme"
 Repository = "https://github.com/emmanuelemmanueletim/edocApi.git"
 Issues = "https://github.com/emmanuelemmanueletim/edocApi/issues"
-Changelog = "https://github.com/emmanuelemmanueletim/edocApi/blob/main/RELEASE_NOTES_0.1.1.md"
+Changelog = "https://github.com/emmanuelemmanueletim/edocApi/blob/main/RELEASE_NOTES_0.1.2.md"
 
 [tool.setuptools]
 include-package-data = true

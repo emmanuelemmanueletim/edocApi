@@ -31,13 +31,17 @@ class HTMLProcessor(BaseProcessor):
         content = self.path.read_text(encoding="utf-8", errors="replace")
         try:
             from weasyprint import HTML
-            out = self._temp_path(suffix=".pdf", prefix="html_")
-            HTML(string=content, base_url=str(self.path.parent)).write_pdf(str(out))
-            return out
-        except Exception as exc:
-            logger.info("WeasyPrint unavailable (%s) - falling back to simple PDF", exc)
+        except ImportError:
             from edocapi.processors.simple_pdf import text_to_pdf
             return text_to_pdf(self.to_text(), temp_storage=self.temp_storage)
+        from edocapi.processors.safe_fetch import blocked_url_fetcher
+        out = self._temp_path(suffix=".pdf", prefix="html_")
+        try:
+            HTML(string=content, url_fetcher=blocked_url_fetcher).write_pdf(str(out))
+            return out
+        except Exception as exc:
+            self._discard_temp(out)
+            raise ConversionError("HTML to PDF conversion failed.") from exc
 
     def info(self) -> dict[str, Any]:
         base = super().info()

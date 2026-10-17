@@ -45,6 +45,7 @@ class Config:
     debug: bool = False
     max_file_size: int = MAX_FILE_SIZE_BYTES
     max_files: int = 20
+    max_request_size: int = 100 * 1024 * 1024
     temp_dir: str | None = None
     enable_dashboard: bool = True
     # Security
@@ -64,24 +65,41 @@ class Config:
         debug = bool(kwargs.get("debug", False))
         max_file_size = _parse_size(kwargs.get("max_file_size", "50MB"))
         max_files = int(kwargs.get("max_files", 20))
+        max_request_size = _parse_size(kwargs.get("max_request_size", "100MB"))
         if max_file_size <= 0:
             raise ValueError("max_file_size must be greater than zero.")
         if max_file_size > MAX_FILE_SIZE_BYTES:
             raise ValueError("max_file_size cannot exceed the framework limit of 50MB.")
         if max_files <= 0:
             raise ValueError("max_files must be greater than zero.")
+        if max_request_size <= 0:
+            raise ValueError("max_request_size must be greater than zero.")
         temp_dir = kwargs.get("temp_dir") or os.environ.get("EDOCAPI_TEMP_DIR")
         enable_dashboard = bool(kwargs.get("dashboard", True))
         strict_magic_check = bool(kwargs.get("strict_magic_check", True))
         enable_ocr = bool(kwargs.get("enable_ocr", False))
         ocr_lang = str(kwargs.get("ocr_lang", "eng"))
+        configured_extensions = kwargs.get("allowed_extensions")
+        allowed_extensions = (
+            {
+                str(ext).lower() if str(ext).startswith(".") else f".{str(ext).lower()}"
+                for ext in configured_extensions
+            }
+            if configured_extensions is not None
+            else {
+                ".pdf", ".docx", ".html", ".htm", ".md", ".markdown",
+                ".jpg", ".jpeg", ".png", ".webp", ".txt",
+            }
+        )
         return cls(
             debug=debug,
             max_file_size=max_file_size,
             max_files=max_files,
+            max_request_size=max_request_size,
             temp_dir=temp_dir,
             enable_dashboard=enable_dashboard,
             strict_magic_check=strict_magic_check,
+            allowed_extensions=allowed_extensions,
             enable_ocr=enable_ocr,
             ocr_lang=ocr_lang,
         )

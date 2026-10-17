@@ -62,3 +62,7 @@ class ValidationError(EdocAPIError):
 
 class SecurityError(EdocAPIError):
     """Raised when a security policy is violated (path traversal, unsafe content, etc.)."""
+
+
+class MissingUpload(EdocAPIError):
+    """Raised when a route requires an upload that was not provided."""

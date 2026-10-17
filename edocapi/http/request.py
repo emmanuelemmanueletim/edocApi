@@ -52,7 +52,7 @@ class Request:
             if max_size is not None and len(self._body) > max_size:
                 raise FileTooLarge("Request body exceeds the configured limit.", size=len(self._body), limit=max_size)
             return self._body
-        chunks: list[bytes] = []
+        chunks = bytearray()
         size = 0
         while True:
             message = await self._receive()
@@ -61,12 +61,12 @@ class Request:
                 size += len(chunk)
                 if max_size is not None and size > max_size:
                     raise FileTooLarge("Request body exceeds the configured limit.", size=size, limit=max_size)
-                chunks.append(chunk)
+                chunks.extend(chunk)
                 if not message.get("more_body", False):
                     break
             elif message["type"] == "http.disconnect":
                 break
-        self._body = b"".join(chunks)
+        self._body = bytes(chunks)
         return self._body
 
     async def json(self) -> Any:
@@ -76,3 +76,29 @@ class Request:
     async def form(self) -> Mapping[str, Any]:
         """Return already-parsed form data (populated by the App)."""
         return self._form or {}
+
+    async def iter_body(self):
+        """Yield body chunks without retaining the complete request body."""
+        content_length = self.headers.get("content-length")
+        if self._max_body_size is not None and content_length and content_length.isdigit() and int(content_length) > self._max_body_size:
+            raise FileTooLarge("Request body exceeds the configured limit.", size=int(content_length), limit=self._max_body_size)
+        size = 0
+        if self._body is not None:
+            size = len(self._body)
+            if self._max_body_size is not None and size > self._max_body_size:
+                raise FileTooLarge("Request body exceeds the configured limit.", size=size, limit=self._max_body_size)
+            yield self._body
+            return
+        while True:
+            message = await self._receive()
+            if message["type"] == "http.request":
+                chunk = message.get("body", b"")
+                size += len(chunk)
+                if self._max_body_size is not None and size > self._max_body_size:
+                    raise FileTooLarge("Request body exceeds the configured limit.", size=size, limit=self._max_body_size)
+                for offset in range(0, len(chunk), 64 * 1024):
+                    yield chunk[offset:offset + 64 * 1024]
+                if not message.get("more_body", False):
+                    break
+            elif message["type"] == "http.disconnect":
+                break

@@ -217,8 +217,10 @@ class PDFProcessor(BaseProcessor):
         super().__init__(path, temp_storage=temp_storage)
         try:
             self._reader = PdfReader(str(path))
-        except PdfReadError as exc:
-            raise InvalidDocument(f"Invalid or corrupted PDF: {exc}") from exc
+        except Exception as exc:
+            raise InvalidDocument("Invalid or corrupted PDF.") from exc
+        if self._reader.is_encrypted:
+            raise InvalidDocument("Encrypted PDFs are not supported.")
 
     def to_pdf(self) -> Path:
         out = self._temp_path(suffix=".pdf", prefix="copy_")
@@ -606,7 +608,7 @@ class PDFProcessor(BaseProcessor):
     def ocr(self, *, lang: str = "eng", engine: str = "tesseract") -> str:
         """Use embedded PDF text page by page and OCR pages that are scans."""
         if engine not in {"tesseract", "paddle"}:
-            raise ValueError("OCR engine must be 'tesseract' or 'paddle'.")
+            raise ProcessingError("OCR engine must be 'tesseract' or 'paddle'.")
 
         # Paddle is explicitly selected for its document-layout and formula
         # recognition. Run that pipeline for the full document, including
@@ -680,14 +682,19 @@ class PDFProcessor(BaseProcessor):
         if fmt not in {"png", "jpg", "jpeg", "webp"}:
             raise ProcessingError(f"Unsupported image format: {fmt}")
 
-        images = convert_from_path(str(self.path), dpi=150)
         paths = []
-        for i, img in enumerate(images):
-            out = self._temp_path(suffix=f".{fmt}", prefix=f"page_{i+1}_")
-            save_fmt = "JPEG" if fmt in {"jpg", "jpeg"} else fmt.upper()
-            img.save(str(out), save_fmt)
-            paths.append(out)
-        return paths
+        try:
+            images = convert_from_path(str(self.path), dpi=150)
+            for i, img in enumerate(images):
+                out = self._temp_path(suffix=f".{fmt}", prefix=f"page_{i+1}_")
+                paths.append(out)
+                save_fmt = "JPEG" if fmt in {"jpg", "jpeg"} else fmt.upper()
+                img.save(str(out), save_fmt)
+            return paths
+        except Exception as exc:
+            for path in paths:
+                self._discard_temp(path)
+            raise ProcessingError("PDF page rendering failed.") from exc
 
     @staticmethod
     def merge(paths: Sequence[Path], *, temp_storage: Any = None) -> Path:
@@ -695,10 +702,14 @@ class PDFProcessor(BaseProcessor):
         for p in paths:
             try:
                 reader = PdfReader(str(p))
+                if reader.is_encrypted:
+                    raise InvalidDocument("Encrypted PDFs are not supported.")
                 for page in reader.pages:
                     writer.add_page(page)
             except Exception as exc:
-                raise ProcessingError(f"Failed to merge {p}: {exc}") from exc
+                if isinstance(exc, InvalidDocument):
+                    raise
+                raise ProcessingError(f"Failed to merge '{Path(p).name}'.") from exc
 
         if temp_storage is not None:
             out = temp_storage.create_file(suffix=".pdf", prefix="merged_")

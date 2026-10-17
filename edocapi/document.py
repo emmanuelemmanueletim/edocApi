@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Sequence
 
-from edocapi.exceptions import ConversionError, InvalidDocument, ProcessingError
+from edocapi.exceptions import ConversionError, InvalidDocument, ProcessingError, UnsupportedFileType
 from edocapi.config import MAX_FILE_SIZE_BYTES
 from edocapi.processors.base import get_processor_class, list_supported_types
 from edocapi.storage.temporary import TemporaryStorage, safe_filename
@@ -35,6 +35,7 @@ class Document:
         temp_storage: TemporaryStorage | None = None,
         max_size: int = MAX_FILE_SIZE_BYTES,
         strict_magic: bool = True,
+        allowed_extensions: set[str] | None = None,
     ) -> None:
         if max_size <= 0:
             raise ValueError("max_size must be greater than zero.")
@@ -56,11 +57,20 @@ class Document:
             path = Path(source)
             self._path = path
             self._name = filename or path.name
-            self._type = validate_file(path, max_size=max_size, strict_magic=strict_magic)
+            if allowed_extensions is not None:
+                self._check_allowed_extension(self._name, allowed_extensions)
+            self._type = validate_file(
+                path, max_size=max_size, strict_magic=strict_magic,
+                allowed_extensions=allowed_extensions,
+            )
         elif isinstance(source, bytes):
             if not filename:
                 raise InvalidDocument("filename is required when creating Document from bytes")
+            if not source:
+                raise InvalidDocument("Document content cannot be empty.")
             safe = safe_filename(filename)
+            if allowed_extensions is not None:
+                self._check_allowed_extension(safe, allowed_extensions)
             path = self._temp.create_file(
                 suffix=Path(safe).suffix,
                 prefix="doc_",
@@ -68,7 +78,14 @@ class Document:
             )
             self._path = path
             self._name = safe
-            self._type = validate_file(path, max_size=max_size, strict_magic=strict_magic)
+            try:
+                self._type = validate_file(
+                    path, max_size=max_size, strict_magic=strict_magic,
+                    allowed_extensions=allowed_extensions,
+                )
+            except Exception:
+                self._temp.discard(path)
+                raise
         else:
             raise TypeError(
                 f"Unsupported source type for Document: {type(source)}. "
@@ -76,6 +93,13 @@ class Document:
             )
 
         logger.debug("Document created: %s (type=%s)", self._name, self._type)
+
+    @staticmethod
+    def _check_allowed_extension(filename: str, allowed_extensions: set[str]) -> None:
+        extension = Path(filename).suffix.lower()
+        normalized = {ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in allowed_extensions}
+        if extension not in normalized:
+            raise InvalidDocument(f"File extension '{extension or '(none)'}' is not allowed.")
 
     # ------------------------------------------------------------------
     # Properties
@@ -134,6 +158,8 @@ class Document:
     # ------------------------------------------------------------------
 
     def _processor(self):
+        if self._path is None or self._type is None:
+            raise InvalidDocument("Document is empty or has no validated source file.")
         cls = get_processor_class(self.type)
         return cls(self.path, temp_storage=self._temp)
 
@@ -144,11 +170,25 @@ class Document:
     def to_pdf(self) -> "Document":
         """Convert this document to PDF and return a new Document."""
         logger.info("Converting %s -> PDF", self.name)
+        out_path: Path | None = None
         try:
             out_path = self._processor().to_pdf()
+            if not out_path.is_file() or out_path.stat().st_size == 0:
+                raise ConversionError("Converter produced an empty or missing PDF.")
             return Document(out_path, filename=out_path.name, doc_type="pdf", temp_storage=self._temp)
+        except (InvalidDocument, UnsupportedFileType):
+            if out_path is not None:
+                self._temp.discard(out_path)
+            raise
+        except ConversionError:
+            if out_path is not None:
+                self._temp.discard(out_path)
+            raise
         except Exception as exc:
-            raise ConversionError(f"Failed to convert {self.name} to PDF: {exc}") from exc
+            if out_path is not None:
+                self._temp.discard(out_path)
+            logger.exception("PDF conversion failed for %s", self.name)
+            raise ConversionError(f"Failed to convert '{self.name}' to PDF.") from exc
 
     def to_text(self) -> str:
         """Extract plain text."""
@@ -171,11 +211,19 @@ class Document:
         return self._processor().to_html()
 
     def to_images(self, *, format: str = "png") -> list["Document"]:
-        paths = self._processor().to_images(format=format)
-        return [
-            Document(p, filename=p.name, doc_type=format, temp_storage=self._temp)
-            for p in paths
-        ]
+        paths: list[Path] = []
+        try:
+            paths = self._processor().to_images(format=format)
+            if not paths or any(not p.is_file() or p.stat().st_size == 0 for p in paths):
+                raise ProcessingError("Image converter produced no output or an empty image.")
+            return [
+                Document(p, filename=p.name, doc_type=format, temp_storage=self._temp)
+                for p in paths
+            ]
+        except Exception:
+            for path in paths:
+                self._temp.discard(path)
+            raise
 
     def info(self) -> dict[str, Any]:
         return self._processor().info()
@@ -210,7 +258,7 @@ class Document:
             pip install edocapi[structured-ocr]
         """
         if engine not in {"tesseract", "paddle"}:
-            raise ValueError("OCR engine must be 'tesseract' or 'paddle'.")
+            raise ProcessingError("OCR engine must be 'tesseract' or 'paddle'.")
 
         # Tesseract uses embedded PDF text when available. Paddle is an
         # explicit request for full document and formula reconstruction.
@@ -244,16 +292,28 @@ class Document:
         """Merge multiple PDF documents into one."""
         from edocapi.processors.pdf import PDFProcessor
 
+        owns_temp = temp_storage is None
         temp = temp_storage or TemporaryStorage()
         paths: list[Path] = []
-        for f in files:
-            if isinstance(f, Document):
-                paths.append(f.path)
-            else:
-                paths.append(Path(f))
+        try:
+            for f in files:
+                if isinstance(f, Document):
+                    path = f.path
+                else:
+                    path = Path(f)
+                validate_file(path, max_size=MAX_FILE_SIZE_BYTES, strict_magic=True)
+                if path.suffix.lower() != ".pdf":
+                    raise InvalidDocument(f"Merge only accepts PDF files: {path.name}")
+                from edocapi.processors.pdf import PDFProcessor
+                PDFProcessor(path, temp_storage=temp)
+                paths.append(path)
 
-        if not paths:
-            raise ProcessingError("No files provided for merge.")
+            if not paths:
+                raise ProcessingError("No files provided for merge.")
 
-        out = PDFProcessor.merge(paths, temp_storage=temp)
-        return cls(out, filename=out.name, doc_type="pdf", temp_storage=temp)
+            out = PDFProcessor.merge(paths, temp_storage=temp)
+            return cls(out, filename=out.name, doc_type="pdf", temp_storage=temp)
+        except Exception:
+            if owns_temp:
+                temp.cleanup()
+            raise

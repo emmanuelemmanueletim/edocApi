@@ -13,6 +13,7 @@ from edocapi.processors.base import BaseProcessor, register_processor
 from edocapi.processors.ocr import configure_tesseract, normalize_tesseract_language
 
 logger = logging.getLogger("edocapi.processors.image")
+MAX_IMAGE_PIXELS = 100_000_000
 
 
 @register_processor("jpeg", "jpg", "png", "webp")
@@ -23,8 +24,15 @@ class ImageProcessor(BaseProcessor):
     def __init__(self, path: Path, *, temp_storage: Any = None) -> None:
         super().__init__(path, temp_storage=temp_storage)
         try:
+            with Image.open(str(path)) as probe:
+                if probe.width * probe.height > MAX_IMAGE_PIXELS:
+                    raise InvalidDocument(
+                        f"Image exceeds the {MAX_IMAGE_PIXELS:,}-pixel processing limit."
+                    )
             self._img = Image.open(str(path))
             self._img.load()
+        except InvalidDocument:
+            raise
         except Exception as exc:
             raise InvalidDocument(f"Invalid or corrupted image: {exc}") from exc
 

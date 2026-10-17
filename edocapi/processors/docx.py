@@ -67,21 +67,33 @@ class DocxProcessor(BaseProcessor):
                 convert_docx_with_reportlab,
                 new_output_path,
             )
-
-            return convert_docx_with_reportlab(self, new_output_path(self))
-        except Exception as exc:
-            logger.warning("ReportLab DOCX rendering failed (%s); trying WeasyPrint", exc)
+        except ImportError:
+            convert_docx_with_reportlab = None
+        if convert_docx_with_reportlab is not None:
+            reportlab_out = new_output_path(self)
+            try:
+                result = convert_docx_with_reportlab(self, reportlab_out)
+                if result.is_file() and result.stat().st_size:
+                    return result
+                raise ConversionError("DOCX renderer produced an empty PDF.")
+            except Exception as exc:
+                self._discard_temp(reportlab_out)
+                raise ConversionError("DOCX to PDF conversion failed.") from exc
 
         html_content = self.to_html()
         try:
             from weasyprint import HTML
-            out = self._temp_path(suffix=".pdf", prefix="docx_")
-            HTML(string=html_content).write_pdf(str(out))
-            return out
-        except Exception as exc:
-            logger.warning("WeasyPrint unavailable (%s) - using basic text fallback", exc)
+        except ImportError:
             from edocapi.processors.simple_pdf import structured_docx_to_pdf
             return structured_docx_to_pdf(self)
+        from edocapi.processors.safe_fetch import blocked_url_fetcher
+        out = self._temp_path(suffix=".pdf", prefix="docx_")
+        try:
+            HTML(string=html_content, url_fetcher=blocked_url_fetcher).write_pdf(str(out))
+            return out
+        except Exception as exc:
+            self._discard_temp(out)
+            raise ConversionError("DOCX to PDF conversion failed.") from exc
 
     def info(self) -> dict[str, Any]:
         base = super().info()

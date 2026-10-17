@@ -11,3 +11,19 @@ def test_dashboard_response_has_editable_document_toolbar():
     assert 'data-command="justifyFull"' in page
     assert "Download formatted HTML" in page
     assert "function renderEditor" in page
+
+
+def test_dashboard_displays_rate_limit_metadata():
+    page = render_dashboard(
+        [{
+            "path": "/ocr",
+            "methods": ["POST"],
+            "name": "ocr",
+            "description": "Run OCR",
+            "rate_limit": "3/minute",
+            "parameters": [],
+        }],
+        ["pdf"],
+        10_000_000,
+    )
+    assert "3/minute per client" in page

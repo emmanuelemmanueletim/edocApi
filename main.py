@@ -7,7 +7,9 @@ Run with:
 
 from edocapi import App, Document, __version__
 
-app = App()
+# The example application exposes its documented OCR endpoint. Library users
+# who do not need OCR can keep the safer default with ``App()``.
+app = App(enable_ocr=True)
 
 
 @app.post("/convert")

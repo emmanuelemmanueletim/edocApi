@@ -24,6 +24,10 @@ def render_dashboard(
         methods = " ".join(
             f'<span class="method method-{escape(m.lower(), quote=True)}">{escape(m)}</span>' for m in r["methods"]
         )
+        rate_limit = (
+            f'<span class="rate-limit">{escape(str(r["rate_limit"]))} per client</span>'
+            if r.get("rate_limit") else ""
+        )
         params_html = ""
         for p in r.get("parameters", []):
             req = "required" if p["required"] else "optional"
@@ -77,6 +81,7 @@ def render_dashboard(
             <div class="methods">{methods}</div>
             <code class="path">{escape(str(r["path"]))}</code>
             <span class="endpoint-name">{escape(str(r["name"]))}</span>
+            {rate_limit}
           </header>
           <p class="desc">{escape(str(r.get("description") or "No description provided."))}</p>
           <form class="try-form" method="{escape(form_method.lower(), quote=True)}" data-method="{escape(form_method, quote=True)}" action="{escape(str(r["path"]), quote=True)}" enctype="multipart/form-data">
@@ -609,6 +614,14 @@ def render_dashboard(
     font-weight: 500;
   }}
 
+  .rate-limit {{
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.18rem 0.5rem;
+  }}
+
   .desc {{
     font-size: 0.9rem;
     color: var(--text-muted);
@@ -845,7 +858,7 @@ def render_dashboard(
       <div class="logo" aria-hidden="true">e</div>
       <div class="brand">
         <h1>eDocAPI</h1>
-        <p class="tagline">Document workflows in one place <span class="version">v0.1.1</span></p>
+        <p class="tagline">Document workflows in one place <span class="version">v0.1.2</span></p>
       </div>
     </header>
 
