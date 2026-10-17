@@ -13,6 +13,7 @@ from edocapi.exceptions import (
     UnsupportedFileType,
     ValidationError,
 )
+from edocapi.config import MAX_FILE_SIZE_BYTES
 from edocapi.storage.temporary import safe_filename
 
 logger = logging.getLogger("edocapi.validation")
@@ -118,7 +119,7 @@ def _extension_to_type(ext: str) -> str:
 def validate_file(
     path: Path | str,
     *,
-    max_size: int = 50 * 1024 * 1024,
+    max_size: int = MAX_FILE_SIZE_BYTES,
     strict_magic: bool = True,
 ) -> str:
     """Validate a file on disk and return its normalized type string.

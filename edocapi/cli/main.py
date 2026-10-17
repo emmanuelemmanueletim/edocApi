@@ -6,13 +6,20 @@ import argparse
 import sys
 from pathlib import Path
 
+from edocapi import __version__
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="edocapi",
-        description="eDocAPI – pure-Python document processing toolkit (v0.1.1)",
+        description="eDocAPI – tools for document conversion, extraction, OCR, and automation",
     )
-    parser.add_argument("--version", action="store_true", help="Show version and exit")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"edocapi {__version__}",
+        help="Show version and exit",
+    )
 
     sub = parser.add_subparsers(dest="command")
 
@@ -32,7 +39,28 @@ def main(argv: list[str] | None = None) -> int:
     # ocr
     p_ocr = sub.add_parser("ocr", help="OCR an image or scanned PDF (requires ml extra)")
     p_ocr.add_argument("input", type=Path, help="Input file")
-    p_ocr.add_argument("--lang", default="eng", help="Tesseract language (default: eng)")
+    p_ocr.add_argument("--lang", default="eng", help="OCR language (default: eng for Tesseract, en for Paddle)")
+    p_ocr.add_argument("--engine", choices=("tesseract", "paddle"), default="tesseract",
+                       help="OCR engine; paddle adds document layout and formula recognition")
+
+    # prefetch OCR models before the first dashboard/API request
+    p_prefetch = sub.add_parser(
+        "prefetch-ocr",
+        help="Download and initialize the configured PaddleOCR models",
+    )
+    p_prefetch.add_argument(
+        "--lang", default="en", help="PaddleOCR language code (default: en)"
+    )
+    p_prefetch.add_argument(
+        "--model-source",
+        choices=("huggingface", "aistudio", "bos", "modelscope"),
+        help="Preferred model download source (defaults to PaddleX configuration)",
+    )
+    p_prefetch.add_argument(
+        "--disable-model-source-check",
+        action="store_true",
+        help="Skip PaddleX's model-host connectivity precheck; downloads still need network access",
+    )
 
     # compress
     p_comp = sub.add_parser("compress", help="Compress a PDF or image")
@@ -42,8 +70,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    if args.version or args.command is None:
-        from edocapi import __version__
+    if args.command is None:
         print(f"edocapi {__version__}")
         return 0
 
@@ -68,8 +95,22 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(info, indent=2, default=str))
 
         elif args.command == "ocr":
-            text = Document(args.input).ocr(lang=args.lang)
+            text = Document(args.input).ocr(lang=args.lang, engine=args.engine)
             print(text)
+
+        elif args.command == "prefetch-ocr":
+            import os
+
+            # Set these before importing PaddleOCR/PaddleX; both read them at initialization.
+            if args.model_source:
+                os.environ["PADDLE_PDX_MODEL_SOURCE"] = args.model_source
+            if args.disable_model_source_check:
+                os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+
+            from edocapi.processors.structured_ocr import _pipeline
+
+            _pipeline(args.lang)
+            print("PaddleOCR model prefetch complete.")
 
         elif args.command == "compress":
             target = _parse_size(args.target) if args.target else None

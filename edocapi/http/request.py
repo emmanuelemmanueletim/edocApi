@@ -1,4 +1,4 @@
-"""Minimal ASGI Request wrapper (no Starlette)."""
+"""HTTP Request interface used by the eDocAPI ASGI application."""
 
 from __future__ import annotations
 

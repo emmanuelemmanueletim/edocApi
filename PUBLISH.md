@@ -51,4 +51,4 @@ pip install edocapi
 
 - Make sure `LICENSE`, `README.md`, and `RELEASE_NOTES_0.1.1.md` are present.
 - Version is defined in `pyproject.toml` and `edocapi/__init__.py`.
-- No Starlette dependency is declared – the package is self-contained.
+- Check that package capabilities, installation extras, and README guidance match before publishing.

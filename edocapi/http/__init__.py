@@ -1,4 +1,4 @@
-"""Minimal pure-Python ASGI / HTTP primitives used by eDocAPI App."""
+"""HTTP request and multipart utilities used by the eDocAPI application."""
 
 from edocapi.http.request import Request
 from edocapi.http.multipart import parse_multipart

@@ -52,7 +52,7 @@ def _parse_pure(
     max_files: int,
     temp_storage: TemporaryStorage,
 ) -> tuple[list[Path], dict[str, str]]:
-    """Pure-Python multipart parser (secure, size-aware)."""
+    """Size-aware multipart form parser for eDocAPI requests."""
     boundary = _parse_boundary(content_type)
     if not boundary:
         raise ValidationError("Missing or invalid multipart boundary.")
@@ -63,59 +63,64 @@ def _parse_pure(
     fields: dict[str, str] = {}
     file_count = 0
 
-    for part in parts:
-        part = part.strip(b"\r\n")
-        if not part or part == b"--" or part == b"-":
-            continue
-        if b"\r\n\r\n" not in part:
-            continue
-        header_blob, data = part.split(b"\r\n\r\n", 1)
-        # Remove trailing boundary markers
-        if data.endswith(b"--"):
-            data = data[:-2]
-        data = data.rstrip(b"\r\n")
+    try:
+        for part in parts:
+            part = part.strip(b"\r\n")
+            if not part or part == b"--" or part == b"-":
+                continue
+            if b"\r\n\r\n" not in part:
+                continue
+            header_blob, data = part.split(b"\r\n\r\n", 1)
+            # Remove trailing boundary markers
+            if data.endswith(b"--"):
+                data = data[:-2]
+            data = data.rstrip(b"\r\n")
 
-        headers = header_blob.decode("latin-1", errors="replace")
-        name_match = re.search(r'name="([^"]+)"', headers, re.IGNORECASE)
-        filename_match = re.search(r'filename="([^"]*)"', headers, re.IGNORECASE)
+            headers = header_blob.decode("latin-1", errors="replace")
+            name_match = re.search(r'name="([^"]+)"', headers, re.IGNORECASE)
+            filename_match = re.search(r'filename="([^"]*)"', headers, re.IGNORECASE)
 
-        if not name_match:
-            continue
-        name = name_match.group(1)
+            if not name_match:
+                continue
+            name = name_match.group(1)
 
-        if filename_match is not None:
-            filename = filename_match.group(1)
-            if not filename:
-                continue  # empty file field
-            file_count += 1
-            if file_count > max_files:
-                raise ValidationError(f"Too many files (max {max_files}).")
-            if len(data) > max_size:
-                raise FileTooLarge(
-                    f"Uploaded file exceeds size limit of {max_size} bytes.",
-                    size=len(data),
-                    limit=max_size,
+            if filename_match is not None:
+                filename = filename_match.group(1)
+                if not filename:
+                    continue  # empty file field
+                file_count += 1
+                if file_count > max_files:
+                    raise ValidationError(f"Too many files (max {max_files}).")
+                if len(data) > max_size:
+                    raise FileTooLarge(
+                        f"Uploaded file exceeds size limit of {max_size} bytes.",
+                        size=len(data),
+                        limit=max_size,
+                    )
+                safe = safe_filename(filename)
+                # Reject path traversal attempts that survived safe_filename
+                if ".." in safe or "/" in safe or "\\" in safe:
+                    raise SecurityError("Invalid filename detected.")
+                path = temp_storage.create_file(
+                    suffix=Path(safe).suffix,
+                    prefix="upload_",
+                    content=data,
                 )
-            safe = safe_filename(filename)
-            # Reject path traversal attempts that survived safe_filename
-            if ".." in safe or "/" in safe or "\\" in safe:
-                raise SecurityError("Invalid filename detected.")
-            path = temp_storage.create_file(
-                suffix=Path(safe).suffix,
-                prefix="upload_",
-                content=data,
-            )
-            files.append(path)
-        else:
-            if len(fields) >= _MAX_FIELDS and name not in fields:
-                raise ValidationError(f"Too many form fields (max {_MAX_FIELDS}).")
-            if len(data) > _MAX_FIELD_BYTES:
-                raise FileTooLarge("Form field exceeds the size limit.", size=len(data), limit=_MAX_FIELD_BYTES)
-            if len(name) > 200:
-                raise ValidationError("Form field name is too long.")
-            try:
-                fields[name] = data.decode("utf-8", errors="replace")
-            except Exception:
-                fields[name] = ""
+                files.append(path)
+            else:
+                if len(fields) >= _MAX_FIELDS and name not in fields:
+                    raise ValidationError(f"Too many form fields (max {_MAX_FIELDS}).")
+                if len(data) > _MAX_FIELD_BYTES:
+                    raise FileTooLarge("Form field exceeds the size limit.", size=len(data), limit=_MAX_FIELD_BYTES)
+                if len(name) > 200:
+                    raise ValidationError("Form field name is too long.")
+                try:
+                    fields[name] = data.decode("utf-8", errors="replace")
+                except Exception:
+                    fields[name] = ""
 
+    except Exception:
+        for path in files:
+            temp_storage.discard(path)
+        raise
     return files, fields

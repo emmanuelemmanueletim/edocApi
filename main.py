@@ -47,9 +47,16 @@ def extract(file):
 
 
 @app.post("/ocr")
-def ocr(file, lang: str = "eng"):
-    """OCR an image or scanned PDF (requires edocapi[ml])."""
-    return {"text": Document(file).ocr(lang=lang)}
+def ocr(file, lang: str = "eng", engine: str = "tesseract"):
+    """Extract PDF text directly; OCR image and scanned PDF pages. English is the default.
+
+    Tesseract requires edocapi[ml] when an uploaded page needs OCR. Set
+    engine=paddle for advanced document layout, table, formula, and seal
+    recognition; chart parsing can be enabled with
+    EDOCAPI_PADDLE_CHART_RECOGNITION=1. Paddle requires edocapi[structured-ocr]
+    on Python 3.13 or earlier for pages that need OCR.
+    """
+    return {"text": Document(file).ocr(lang=lang, engine=engine)}
 
 
 @app.post("/info")

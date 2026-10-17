@@ -1,10 +1,12 @@
-"""eDocAPI application – pure ASGI, zero dependency on Starlette/FastAPI."""
+"""eDocAPI ASGI application with built-in routing for document workflows."""
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 import re
+import sys
 from typing import Any, Callable, Sequence
 
 from edocapi.config import Config
@@ -83,7 +85,7 @@ class App:
     def __init__(
         self,
         debug: bool = False,
-        max_file_size: str | int = "10MB",
+        max_file_size: str | int = "50MB",
         temp_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -159,6 +161,7 @@ class App:
     # ------------------------------------------------------------------
 
     def _dashboard_endpoint(self) -> str:
+        from importlib.util import find_spec
         from edocapi.document import Document
         from edocapi.dashboard import render_dashboard
 
@@ -170,17 +173,55 @@ class App:
             for parameter in inspect.signature(route.endpoint).parameters.values():
                 if parameter.name == "request":
                     continue
-                params.append({
+                param_info = {
                     "name": parameter.name,
                     "required": parameter.default is inspect.Parameter.empty,
                     "kind": "upload" if parameter.name in ("file", "files") else "parameter",
                     "multiple": parameter.name == "files",
+                    "default": (
+                        None if parameter.default is inspect.Parameter.empty
+                        else str(parameter.default)
+                    ),
                     "type": (
                         getattr(parameter.annotation, "__name__", "string")
                         if parameter.annotation is not inspect.Parameter.empty
                         else "string"
                     ),
-                })
+                }
+                if route.name == "ocr" and parameter.name == "engine":
+                    paddle_unavailable = sys.version_info >= (3, 14)
+                    if not paddle_unavailable:
+                        paddle_unavailable = find_spec("paddleocr") is None
+                    param_info["choices"] = [
+                        {"value": "tesseract", "label": "Standard OCR (Tesseract)"},
+                        {
+                            "value": "paddle",
+                            "label": "Advanced OCR (layout, tables, formulas)",
+                            "disabled": paddle_unavailable,
+                        },
+                    ]
+                    if sys.version_info >= (3, 14):
+                        param_info["help"] = (
+                            f"PaddleOCR is disabled because this server runs Python "
+                            f"{sys.version_info.major}.{sys.version_info.minor}. "
+                            "Run the server with Python 3.13 or earlier and install the "
+                            "structured-ocr extra to enable advanced OCR."
+                        )
+                    elif paddle_unavailable:
+                        param_info["help"] = (
+                            "PaddleOCR is not installed in this server environment. "
+                            'Install it with: python -m pip install -e '
+                            '".[structured-ocr,server]", then restart the server.'
+                        )
+                    else:
+                        param_info["help"] = (
+                            "PDF pages with embedded text skip OCR model startup. For scanned pages, "
+                            "prefetching downloads model files. The first OCR request in each server "
+                            "process still loads cached weights into memory and may take a while on CPU; "
+                            "later requests reuse the loaded pipeline until the server restarts. "
+                            "Large chart parsing is optional; see the README to enable it."
+                        )
+                params.append(param_info)
             routes.append({
                 "path": route.path,
                 "methods": sorted(route.methods),
@@ -242,12 +283,12 @@ class App:
     async def _dispatch(self, endpoint: Callable, request: Request) -> Any:
         from edocapi.document import Document
 
+        uploads: list = []
         try:
             sig = inspect.signature(endpoint)
             kwargs: dict[str, Any] = {}
 
             # Parse multipart when needed
-            uploads: list = []
             form_fields: dict[str, str] = {}
             content_type = request.headers.get("content-type", "")
             if "multipart/form-data" in content_type.lower() and any(
@@ -289,17 +330,37 @@ class App:
             if inspect.iscoroutinefunction(endpoint):
                 result = await endpoint(**kwargs)
             else:
-                result = endpoint(**kwargs)
+                # OCR, conversions, and other synchronous handlers can take
+                # seconds or minutes. Keep them off the ASGI event loop so
+                # health checks and the dashboard remain responsive meanwhile.
+                result = await asyncio.to_thread(endpoint, **kwargs)
 
-            return self._make_response(result)
+            response = self._make_response(result)
 
         except EdocAPIError as exc:
             status = 413 if isinstance(exc, FileTooLarge) else 400
             logger.warning("eDocAPI error: %s", exc)
-            return make_error_response(exc, status_code=status, debug=self.config.debug)
+            response = make_error_response(exc, status_code=status, debug=self.config.debug)
         except Exception as exc:
             logger.exception("Unhandled error in endpoint")
-            return make_error_response(exc, status_code=500, debug=self.config.debug)
+            response = make_error_response(exc, status_code=500, debug=self.config.debug)
+
+        if uploads:
+            previous_background = getattr(response, "background", None)
+            upload_cleanup = [self._cleanup_callback(path, self._temp_storage) for path in uploads]
+
+            def cleanup_request_files() -> None:
+                try:
+                    if callable(previous_background):
+                        previous_background()
+                finally:
+                    for cleanup in upload_cleanup:
+                        cleanup()
+
+            # Defer cleanup until after response bytes are sent. This also
+            # supports endpoints that return an uploaded file directly.
+            response.background = cleanup_request_files
+        return response
 
     def _make_response(self, result: Any) -> Any:
         from edocapi.document import Document
@@ -317,6 +378,13 @@ class App:
             compression_mode = getattr(result, "_compression_mode", None)
             if compression_mode:
                 headers["X-Edocapi-Compression-Mode"] = compression_mode
+            if compression_mode == "pdf":
+                target_met = getattr(result, "_compression_target_met", None)
+                if target_met is not None:
+                    headers["X-Edocapi-Compression-Target-Met"] = str(target_met).lower()
+                    headers["X-Edocapi-Compression-Target-Bytes"] = str(
+                        result._compression_target_size
+                    )
             filename = path.name
             if compression_mode == "image":
                 original_name = Path(getattr(result, "_original_name", path.name))

@@ -1,4 +1,4 @@
-"""Readable pure-Python PDF writer used when native renderers are unavailable."""
+"""Readable PDF writer for basic text and document layout output."""
 
 from __future__ import annotations
 

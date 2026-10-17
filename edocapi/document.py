@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from edocapi.exceptions import ConversionError, InvalidDocument, ProcessingError
+from edocapi.config import MAX_FILE_SIZE_BYTES
 from edocapi.processors.base import get_processor_class, list_supported_types
 from edocapi.storage.temporary import TemporaryStorage, safe_filename
 from edocapi.validation.files import validate_file
@@ -32,9 +33,14 @@ class Document:
         filename: str | None = None,
         doc_type: str | None = None,
         temp_storage: TemporaryStorage | None = None,
-        max_size: int = 50 * 1024 * 1024,
+        max_size: int = MAX_FILE_SIZE_BYTES,
         strict_magic: bool = True,
     ) -> None:
+        if max_size <= 0:
+            raise ValueError("max_size must be greater than zero.")
+        if max_size > MAX_FILE_SIZE_BYTES:
+            raise ValueError("max_size cannot exceed the framework limit of 50MB.")
+
         self._temp = temp_storage or TemporaryStorage()
         self._max_size = max_size
         self._path: Path | None = None
@@ -152,6 +158,15 @@ class Document:
         """Alias for to_text()."""
         return self.to_text()
 
+    def extract_structured_text(self) -> dict[str, Any]:
+        """Return PDF text with page-level blocks and PDF metadata."""
+        processor = self._processor()
+        if not hasattr(processor, "extract_structured_text"):
+            raise ProcessingError(
+                f"Structured text extraction is not supported for type '{self.type}'."
+            )
+        return processor.extract_structured_text()
+
     def to_html(self) -> str:
         return self._processor().to_html()
 
@@ -166,7 +181,7 @@ class Document:
         return self._processor().info()
 
     def compress(self, target_size: int | None = None) -> "Document":
-        """Compress PDF or image. Optionally aim for a target size in bytes."""
+        """Compress a PDF or image, optionally requiring a target size in bytes."""
         proc = self._processor()
         if not hasattr(proc, "compress"):
             raise ProcessingError(f"Compression not supported for type '{self.type}'.")
@@ -174,15 +189,36 @@ class Document:
         doc = Document(out, filename=out.name, doc_type=self.type, temp_storage=self._temp)
         doc._compression_mode = "image" if self.type in {"jpeg", "jpg", "png", "webp"} else "pdf"
         doc._original_name = self.name
+        if self.type == "pdf" and target_size is not None:
+            doc._compression_target_met = out.stat().st_size <= target_size
+            doc._compression_target_size = target_size
         return doc
 
-    def ocr(self, *, lang: str = "eng") -> str:
-        """ML-powered OCR – extract text from images or scanned PDFs.
+    def ocr(self, *, lang: str = "eng", engine: str = "tesseract") -> str:
+        """Extract PDF text directly and OCR only pages that contain scans.
 
-        Requires the optional ``ml`` extra::
+        ``engine="tesseract"`` uses the optional ``ml`` extra when a page needs OCR. Use
+        ``engine="paddle"`` for document layout and formula recognition; that
+        backend uses the optional ``structured-ocr`` extra and supported
+        PaddlePaddle Python versions::
 
             pip install edocapi[ml]
+            pip install edocapi[structured-ocr]
         """
+        if engine not in {"tesseract", "paddle"}:
+            raise ValueError("OCR engine must be 'tesseract' or 'paddle'.")
+
+        # Tesseract uses embedded PDF text when available. Paddle is an
+        # explicit request for full document and formula reconstruction.
+        if self.type == "pdf":
+            return self._processor().ocr(lang=lang, engine=engine)
+
+        if engine == "paddle":
+            from edocapi.processors.structured_ocr import ocr_document
+            if self.type not in {"jpeg", "jpg", "png", "webp"}:
+                raise ProcessingError(f"Structured OCR is not available for type '{self.type}'.")
+            return ocr_document(self.path, lang=lang)
+
         proc = self._processor()
         if hasattr(proc, "ocr"):
             return proc.ocr(lang=lang)

@@ -1,4 +1,4 @@
-"""Lightweight response objects (framework-independent)."""
+"""HTTP response classes used by eDocAPI routes."""
 
 from __future__ import annotations
 
@@ -26,7 +26,11 @@ class JSONResponse:
         self.headers.setdefault("content-type", "application/json; charset=utf-8")
 
     def body(self) -> bytes:
-        return json.dumps(self.content, ensure_ascii=False, default=str).encode("utf-8")
+        # Keep response bytes ASCII-only. JSON clients decode these escapes
+        # back to Unicode, while older proxies and text viewers that ignore
+        # ``charset=utf-8`` can no longer turn symbols such as 𝑣 or √ into
+        # mojibake (for example, ``ð...`` or ``â...``).
+        return json.dumps(self.content, ensure_ascii=True, default=str).encode("ascii")
 
 
 class FileResponse:

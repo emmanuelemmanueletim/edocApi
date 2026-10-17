@@ -7,26 +7,23 @@
 
 ## Highlights
 
-eDocAPI 0.1.1 is a **complete rewrite of the web layer**.  
-The framework is now **100 % independent of Starlette** (and any other web framework).  
-All document processing, security, and conversion features have been improved and made production-ready.
+eDocAPI 0.1.1 brings an updated application layer together with practical tools for document processing, conversion, OCR, and secure file handling. This release also improves document layout and gives developers an interactive dashboard for trying API routes.
 
 ---
 
 ## Breaking changes
 
-- **Starlette is no longer a dependency.**  
-  The `App` class is a pure ASGI application. You can still run it with uvicorn / hypercorn / any ASGI server.
+- The `App` class is an ASGI application and can be served with uvicorn, hypercorn, or another ASGI server.
 - Import paths remain the same (`from edocapi import App, Document`), so most user code continues to work.
-- The internal request / response objects are no longer Starlette objects. If you previously typed against `starlette.requests.Request`, switch to the lightweight `edocapi.http.Request` (or simply avoid depending on the request object).
+- Route handlers receive the eDocAPI request interface, available as `edocapi.http.Request`, alongside the documented file and query parameters.
 
 ---
 
 ## New features
 
-### Pure-Python ASGI core
-- Minimal, dependency-free request routing, multipart parsing, and response handling.
-- Built-in interactive developer dashboard (no external JS/CSS required).
+### ASGI application
+- Built-in request routing, multipart parsing, and response handling for document endpoints.
+- Interactive developer dashboard for exploring routes and reviewing results.
 - Built-in `GET /health` and `POST /health` checks return the service version and supported formats.
 
 ### ML-powered document features
@@ -37,7 +34,7 @@ All document processing, security, and conversion features have been improved an
 ### Improved converters
 - Smarter image compression with iterative quality search toward a target file size.
 - Enhanced DOCX → HTML → PDF pipeline (tables, headings preserved).
-- Robust pure-Python text → PDF fallback when WeasyPrint is not installed.
+- Text-to-PDF fallback for reliable basic document rendering.
 - Better PDF merge and content-stream compression.
 
 ### Security hardening
@@ -71,15 +68,14 @@ All document processing, security, and conversion features have been improved an
 
 ## Migration guide (0.1.0 → 0.1.1)
 
-1. Remove `starlette` from your own requirements if you only needed it for eDocAPI.
-2. Install the new version:
+1. Install the new version:
    ```bash
    pip install -U edocapi
    # or with server support
    pip install -U edocapi[server]
    ```
-3. Existing `@app.get` / `@app.post` decorators and `Document` usage remain unchanged.
-4. If you used Starlette-specific request features, adapt to the simpler `edocapi.http.Request` or pass only the parameters you need (`file`, `files`, query params, etc.).
+2. Existing `@app.get` / `@app.post` decorators and `Document` usage remain unchanged.
+3. For route type annotations, use `edocapi.http.Request`. Handlers can also accept the documented `file`, `files`, and query parameters directly.
 
 ---
 
@@ -105,7 +101,7 @@ Optional: WeasyPrint, pdf2image, pytesseract, opencv-python-headless, uvicorn.
 - Dashboard endpoint results and errors display in a modal; file responses can be previewed or downloaded without navigating away.
 - Improved DOCX PDF typography, contents-page spacing, cover and section page breaks, table borders, text contrast, and repeated table headers.
 - Preserved DOCX paragraph order, cover title alignment, heading hierarchy, and source table column widths in PDF output.
-- Added ReportLab to core dependencies so DOCX-to-PDF works without WeasyPrint's native GTK libraries.
+- Added ReportLab to core dependencies for paginated DOCX-to-PDF output with formatted headings and tables.
 
 ## Credits
 

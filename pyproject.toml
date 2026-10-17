@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "edocapi"
 version = "0.1.1"
-description = "A pure-Python, framework-independent library and lightweight API for professional document processing, conversion, and automation."
+description = "A Python toolkit for document conversion, extraction, OCR, and secure workflows, with a library, CLI, and ASGI API."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
@@ -28,7 +28,6 @@ keywords = [
     "automation",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -46,6 +45,7 @@ classifiers = [
 dependencies = [
     "python-multipart>=0.0.9",
     "pypdf>=4.0.0",
+    "pypdfium2>=4.30.0",
     "python-docx>=1.1.0",
     "reportlab>=4.2.0",
     "markdown>=3.5",
@@ -66,12 +66,20 @@ ml = [
     "pytesseract>=0.3.10",
     "opencv-python-headless>=4.8.0",
 ]
+# Structured page OCR with layout, tables, and formula recognition. PaddleOCR
+# does not currently provide a PaddlePaddle runtime for Python 3.14 on Windows.
+structured-ocr = [
+    "paddleocr[doc-parser]>=3.3.0; python_version < '3.14'",
+    "paddlepaddle>=3.0.0; python_version < '3.14'",
+]
 # Full feature set
 all = [
     "weasyprint>=61.0",
     "pdf2image>=1.17.0",
     "pytesseract>=0.3.10",
     "opencv-python-headless>=4.8.0",
+    "paddleocr[doc-parser]>=3.3.0; python_version < '3.14'",
+    "paddlepaddle>=3.0.0; python_version < '3.14'",
 ]
 # Server runtime (ASGI server)
 server = [

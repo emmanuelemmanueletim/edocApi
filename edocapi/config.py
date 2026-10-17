@@ -8,6 +8,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+"""Largest upload accepted by an eDocAPI application: 50 MiB."""
+
+
 def _parse_size(value: str | int) -> int:
     """Parse a human-readable size string (e.g. '10MB', '512KB') into bytes."""
     if isinstance(value, int):
@@ -39,7 +43,7 @@ class Config:
     """Runtime configuration for an eDocAPI App instance."""
 
     debug: bool = False
-    max_file_size: int = 10 * 1024 * 1024  # 10 MB
+    max_file_size: int = MAX_FILE_SIZE_BYTES
     max_files: int = 20
     temp_dir: str | None = None
     enable_dashboard: bool = True
@@ -58,10 +62,12 @@ class Config:
     @classmethod
     def from_kwargs(cls, **kwargs: Any) -> "Config":
         debug = bool(kwargs.get("debug", False))
-        max_file_size = _parse_size(kwargs.get("max_file_size", "10MB"))
+        max_file_size = _parse_size(kwargs.get("max_file_size", "50MB"))
         max_files = int(kwargs.get("max_files", 20))
         if max_file_size <= 0:
             raise ValueError("max_file_size must be greater than zero.")
+        if max_file_size > MAX_FILE_SIZE_BYTES:
+            raise ValueError("max_file_size cannot exceed the framework limit of 50MB.")
         if max_files <= 0:
             raise ValueError("max_files must be greater than zero.")
         temp_dir = kwargs.get("temp_dir") or os.environ.get("EDOCAPI_TEMP_DIR")

@@ -10,6 +10,7 @@ from PIL import Image, ImageEnhance, ImageFilter
 
 from edocapi.exceptions import InvalidDocument, ProcessingError
 from edocapi.processors.base import BaseProcessor, register_processor
+from edocapi.processors.ocr import configure_tesseract, normalize_tesseract_language
 
 logger = logging.getLogger("edocapi.processors.image")
 
@@ -45,6 +46,9 @@ class ImageProcessor(BaseProcessor):
             raise ProcessingError(
                 "OCR requires the 'ml' extra. Install with: pip install edocapi[ml]"
             ) from exc
+
+        configure_tesseract(pytesseract)
+        lang = normalize_tesseract_language(lang)
 
         img = self._img
         # Optional OpenCV pre-processing for better accuracy

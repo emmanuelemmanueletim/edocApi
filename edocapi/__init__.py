@@ -1,11 +1,4 @@
-"""
-eDocAPI – pure-Python document processing & lightweight API framework.
-
-Version 0.1.1 is completely independent of Starlette / FastAPI / any
-external web framework.  The core library works with plain Python;
-the optional App class provides a minimal ASGI application that runs
-under any ASGI server (uvicorn, hypercorn, …).
-"""
+"""eDocAPI provides document processing tools and an ASGI application for Python."""
 
 from __future__ import annotations
 
