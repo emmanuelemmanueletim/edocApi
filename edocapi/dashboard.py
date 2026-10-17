@@ -858,7 +858,7 @@ def render_dashboard(
       <div class="logo" aria-hidden="true">e</div>
       <div class="brand">
         <h1>eDocAPI</h1>
-        <p class="tagline">Document workflows in one place <span class="version">v0.1.2</span></p>
+        <p class="tagline">Document workflows in one place <span class="version">v0.1.3</span></p>
       </div>
     </header>
 
